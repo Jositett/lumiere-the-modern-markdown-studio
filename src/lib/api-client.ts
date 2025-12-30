@@ -28,15 +28,35 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       if (res.status >= 500) {
         fetch('/api/client-errors', {
           method: 'POST',
-          body: JSON.stringify({ message: errorMsg, url: window.location.href, category: 'network' })
+          body: JSON.stringify({ message: errorMsg, url: window.location.href, category: 'network', stack: new Error(errorMsg).stack || '' })
         }).catch(() => {});
       }
       throw new Error(errorMsg);
     }
     return json.data;
   } catch (err: any) {
-    if (err.message !== 'Unauthorized' && err.message !== 'Forbidden') {
-      console.error('[API CLIENT ERROR]', err);
+    const errorMessage = err.message || String(err);
+    if (errorMessage !== 'Unauthorized' && errorMessage !== 'Forbidden') {
+      // Report client-side errors
+      fetch('/api/client-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: errorMessage, 
+          stack: err.stack || '', 
+          url: window.location.href, 
+          category: 'api-js' 
+        })
+      }).catch(() => {});
+      
+      toast.error(errorMessage, { 
+        action: { 
+          label: 'Copy Report', 
+          onClick: () => navigator.clipboard.writeText(
+            `URL: ${window.location.href}\nError: ${errorMessage}\nStack: ${err.stack || 'N/A'}`
+          ) 
+        } 
+      });
     }
     throw err;
   }

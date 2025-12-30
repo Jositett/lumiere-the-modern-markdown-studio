@@ -27,7 +27,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           } else if (!res.ok) {
             localStorage.removeItem('lumiere_token');
           }
-        } catch {}
+        } catch (e) { /* ignore network errors during init */ }
       }
       setInitializing(false);
     }
