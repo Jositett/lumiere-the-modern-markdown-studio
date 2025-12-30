@@ -88,7 +88,8 @@ function runSetupCommands() {
     "bun install @codemirror/language-data",
     "bun add jose remark-math rehype-katex mermaid @uiw/codemirror-themes",
     "bun add remark-parse remark-rehype rehype-stringify",
-    "bun add lucide-react clsx tailwind-merge framer-motion"
+    "bun add lucide-react clsx tailwind-merge framer-motion",
+    "bun add mermaid"
 ];
     
     if (commands.length === 0) {
