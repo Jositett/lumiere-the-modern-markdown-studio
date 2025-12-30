@@ -42,6 +42,7 @@ interface EditorState {
   addGuestDocument: (doc: Document) => void;
   updateGuestDocument: (id: string, updates: Partial<Document>) => void;
   deleteGuestDocument: (id: string) => void;
+  loadDocuments: () => Promise<void>;
   migrateGuestDocuments: () => Promise<void>;
 }
 const savedToken = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
@@ -102,6 +103,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (refreshToken) localStorage.setItem('lumiere_refresh', refreshToken);
       localStorage.setItem('lumiere_user', JSON.stringify(user));
       set({ user, token, refreshToken: refreshToken || get().refreshToken, isGuest: false, isBanned: user?.isBanned || false, subscriptionStatus: user?.subscriptionStatus || 'free' });
+      get().migrateGuestDocuments().catch(console.error);
+      get().loadDocuments().catch(console.error);
     } else {
       get().logout();
     }
@@ -147,6 +150,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
       return { guestDocuments: next };
     });
+  },
+  loadDocuments: async () => {
+    try {
+      const resp = await api<{ items: Document[] }>('/api/documents');
+      set({ documents: resp.items || [] });
+    } catch (e) {
+      console.error('loadDocuments failed', e);
+    }
   },
   migrateGuestDocuments: async () => {
     const { isGuest, token, guestDocuments } = get();

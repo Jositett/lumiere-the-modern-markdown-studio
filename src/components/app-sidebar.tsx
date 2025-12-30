@@ -60,7 +60,7 @@ export function AppSidebar(): JSX.Element {
       };
       addGuestDocument(newDoc);
       selectDocument(newDoc);
-      toast.success("Local document created");
+      toast.success("Document created locally. Login for cloud sync!");
       return;
     }
     try {
@@ -68,7 +68,6 @@ export function AppSidebar(): JSX.Element {
       const currentDocuments = useEditorStore.getState().documents;
       const doc = await api<Document>('/api/documents', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${currentToken}` },
         body: JSON.stringify({ title, content })
       });
       useEditorStore.getState().setDocuments([doc, ...currentDocuments]);
@@ -96,7 +95,7 @@ export function AppSidebar(): JSX.Element {
     }
     try {
       const currentToken = useEditorStore.getState().token;
-      await api(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${currentToken}` } });
+      await api(`/api/documents/${id}`, { method: 'DELETE' });
       const currentDocuments = useEditorStore.getState().documents;
       useEditorStore.getState().setDocuments(currentDocuments.filter(d => d.id !== id));
       if (currentActiveId === id) useEditorStore.getState().setActiveDocumentId(null);
@@ -127,15 +126,20 @@ export function AppSidebar(): JSX.Element {
     const currentToken = useEditorStore.getState().token;
     if (!currentToken) return;
     try {
-      const data = await api<{ items: Document[] }>('/api/documents', {
-        headers: { 'Authorization': `Bearer ${currentToken}` }
-      });
+      const data = await api<{ items: Document[] }>('/api/documents');
       useEditorStore.getState().setDocuments(data.items);
     } catch (e) {
       toast.error('Failed to sync library');
     }
   }, []);
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
+
+  useEffect(() => {
+    if (token && !isGuest) {
+      fetchDocuments();
+    }
+  }, [token, isGuest, fetchDocuments]);
+
   const filteredDocs = currentDocs.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
   return (
     <Sidebar className="border-r bg-muted/20">
