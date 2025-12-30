@@ -86,6 +86,5 @@ export const HIGHLIGHT_JS_MAP: Record<string, string> = {
   'dracula': 'dracula',
   'monokai': 'monokai',
   'nord': 'nord',
-  'github-dark': 'github-dark',
-  'auto': 'auto'
+  'github-dark': 'github-dark'
 };

@@ -118,15 +118,19 @@ export const MarkdownPreview = ({
   useEffect(() => {
     const linkId = 'hljs-theme';
     let link = document.getElementById(linkId) as HTMLLinkElement | null;
-    const editorTheme = editorSettings.theme === 'auto' ? (isDark ? 'vs-dark' : 'vs') : editorSettings.theme;
+    const themeFromSettings = editorSettings.theme;
+    const editorTheme = themeFromSettings === 'auto' ? (isDark ? 'vs-dark' : 'vs') : themeFromSettings;
     const hlTheme = HIGHLIGHT_JS_MAP[editorTheme] || (isDark ? 'github-dark' : 'default');
     const href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/${hlTheme}.min.css`;
-    if (link) link.remove();
-    link = document.createElement('link');
-    link.id = linkId;
-    link.rel = 'stylesheet';
-    link.href = href;
-    document.head.appendChild(link);
+    if (!link) {
+      link = document.createElement('link');
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    if (link.href !== href) {
+      link.href = href;
+    }
   }, [editorSettings.theme, isDark]);
   return (
     <div

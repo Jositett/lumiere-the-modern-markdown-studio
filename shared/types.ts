@@ -61,6 +61,7 @@ export interface ChartData {
 export interface EditorSettings {
   theme: string;
   fontSize: number;
+  compactMode?: boolean;
 }
 export interface AuthResponse {
   user: User;
@@ -85,7 +86,6 @@ export interface ClientError {
   lineno?: number;
   colno?: number;
 }
-
 export interface ChatMessage {
   id: string;
   chatId: string;

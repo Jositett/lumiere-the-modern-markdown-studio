@@ -76,13 +76,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   guestDocuments: [],
   editorSettings: (() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
-    return saved ? JSON.parse(saved) : { theme: 'vs-dark', fontSize: 16 };
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { theme: 'vs-dark', fontSize: 16, compactMode: false, ...parsed };
+      } catch (e) {
+        return { theme: 'vs-dark', fontSize: 16, compactMode: false };
+      }
+    }
+    return { theme: 'vs-dark', fontSize: 16, compactMode: false };
   })(),
   setContent: (content) => set({ content }),
   setTitle: (title) => set({ title }),
   setActiveDocumentId: (id) => {
     const state = get();
-    const doc = (state.isGuest ? state.guestDocuments : state.documents).find(d => d.id === id);
+    const isGuest = state.isGuest;
+    const guestDocs = state.guestDocuments;
+    const cloudDocs = state.documents;
+    const doc = (isGuest ? guestDocs : cloudDocs).find(d => d.id === id);
     if (doc) set({ activeDocumentId: id, content: doc.content, title: doc.title });
     else set({ activeDocumentId: id });
   },
@@ -163,7 +174,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ isDark: nextDark });
   },
   loadDocuments: async () => {
-    const { isGuest, token } = get();
+    const isGuest = get().isGuest;
+    const token = get().token;
     if (isGuest || !token) return;
     try {
       const resp = await api<{ items: Document[] }>('/api/documents');
@@ -173,7 +185,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
   migrateGuestDocuments: async () => {
-    const { isGuest, token, guestDocuments } = get();
+    const isGuest = get().isGuest;
+    const token = get().token;
+    const guestDocuments = get().guestDocuments;
     if (isGuest || !token || guestDocuments.length === 0) return;
     try {
       await Promise.all(guestDocuments.map(doc => api('/api/documents', {
