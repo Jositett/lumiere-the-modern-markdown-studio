@@ -92,7 +92,8 @@ function runSetupCommands() {
     "bun add mermaid",
     "bun add -D @types/dompurify",
     "bun add @uiw/codemirror-themes lucide-react",
-    "bun add @monaco-editor/react monaco-editor rehype-raw dompurify isomorphic-dompurify"
+    "bun add @monaco-editor/react monaco-editor rehype-raw dompurify isomorphic-dompurify",
+    "bun add isomorphic-dompurify dompurify"
 ];
     
     if (commands.length === 0) {
