@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SplitPanel } from '@/components/ui/split-panel';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -7,18 +7,21 @@ import { SidebarTrigger, SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Share2, CloudUpload, CheckCircle2, Link as LinkIcon, Settings as SettingsIcon, Maximize2, Minimize2 } from 'lucide-react';
+import { Eye, EyeOff, Share2, CloudUpload, CheckCircle2, Link as LinkIcon, Settings as SettingsIcon, Maximize2, Minimize2, ShieldCheck } from 'lucide-react';
 import { useAutoSave } from '@/hooks/use-autosave';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { ExportMenu } from '@/components/editor/ExportMenu';
+import { HelpDialog } from '@/components/editor/HelpDialog';
 import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 export default function EditorPage() {
   const content = useEditorStore((s) => s.content);
   const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
@@ -35,9 +38,19 @@ export default function EditorPage() {
   const isFocusMode = useEditorStore((s) => s.isFocusMode);
   const setFocusMode = useEditorStore((s) => s.setFocusMode);
   const token = useEditorStore(s => s.token);
+  const user = useEditorStore(s => s.user);
+  const tourComplete = useEditorStore(s => s.tourComplete);
+  const setTourComplete = useEditorStore(s => s.setTourComplete);
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState<'write' | 'preview'>('write');
+  const [showTour, setShowTour] = useState(false);
   useAutoSave();
+  useEffect(() => {
+    if (!tourComplete) {
+      const timer = setTimeout(() => setShowTour(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [tourComplete]);
   const currentDoc = documents.find(d => d.id === activeDocumentId);
   const isPublic = currentDoc?.isPublic ?? false;
   const togglePublic = async () => {
@@ -50,8 +63,8 @@ export default function EditorPage() {
       });
       updateDocumentLocally(activeDocumentId, { isPublic: !isPublic });
       toast.success(isPublic ? "Made Private" : "Made Public");
-    } catch (e) { 
-      toast.error("Update failed"); 
+    } catch (e) {
+      toast.error("Update failed");
     }
   };
   const preview = <MarkdownPreview content={content} scrollPercentage={scrollPercentage} />;
@@ -81,6 +94,11 @@ export default function EditorPage() {
               )}
             </div>
             <div className="flex items-center gap-1">
+              {user?.role === 'admin' && (
+                <Button variant="ghost" size="icon" asChild title="Admin Panel">
+                  <Link to="/admin"><ShieldCheck className="w-4 h-4 text-brand-600" /></Link>
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -119,12 +137,12 @@ export default function EditorPage() {
                     <Switch checked={isPublic} onCheckedChange={togglePublic} />
                   </div>
                   {isPublic && (
-                    <Button 
-                      size="sm" 
-                      className="w-full gap-2" 
-                      onClick={() => { 
-                        navigator.clipboard.writeText(`${window.location.origin}/s/${activeDocumentId}`); 
-                        toast.success("Copied to clipboard"); 
+                    <Button
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/s/${activeDocumentId}`);
+                        toast.success("Copied to clipboard");
                       }}
                     >
                       <LinkIcon className="w-3 h-3" /> Copy Link
@@ -138,6 +156,7 @@ export default function EditorPage() {
                 </Button>
               )}
               <ExportMenu />
+              <HelpDialog />
               <ThemeToggle className="static" />
             </div>
           </header>
@@ -165,6 +184,25 @@ export default function EditorPage() {
             ) : (
               <MarkdownEditor />
             )}
+            <AnimatePresence>
+              {showTour && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute bottom-8 left-8 z-50 max-w-xs p-6 bg-brand-600 text-white rounded-3xl shadow-2xl"
+                >
+                  <h3 className="text-lg font-bold mb-2">Welcome to your Studio!</h3>
+                  <p className="text-sm text-brand-100 mb-6">Need a hand? Explore the documentation or use the help menu for quick shortcuts.</p>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => setTourComplete(true)}>Got it</Button>
+                    <Button variant="ghost" size="sm" asChild className="text-white hover:bg-white/10">
+                      <Link to="/docs" onClick={() => setTourComplete(true)}>Open Docs</Link>
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </main>
       </div>

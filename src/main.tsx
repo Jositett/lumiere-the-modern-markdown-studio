@@ -15,6 +15,8 @@ import { HomePage } from '@/pages/HomePage'
 import EditorPage from '@/pages/EditorPage'
 import AuthPage from '@/pages/AuthPage'
 import { PublicSharePage } from '@/pages/PublicSharePage'
+import DocsPage from '@/pages/DocsPage'
+import AdminPage from '@/pages/AdminPage'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
@@ -29,10 +31,24 @@ const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   },
   {
+    path: "/docs",
+    element: <DocsPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
     path: "/app",
     element: (
       <ProtectedRoute>
         <EditorPage />
+      </ProtectedRoute>
+    ),
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/admin",
+    element: (
+      <ProtectedRoute>
+        <AdminPage />
       </ProtectedRoute>
     ),
     errorElement: <RouteErrorBoundary />,

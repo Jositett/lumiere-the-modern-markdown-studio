@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { Document, User, EditorSettings, VersionSnapshot } from '@shared/types';
-import api from '@/lib/api-client';
+import type { Document, User, EditorSettings, VersionSnapshot, AdminStats } from '@shared/types';
+import { api } from '@/lib/api-client';
 interface EditorState {
   content: string;
   title: string;
@@ -15,6 +15,8 @@ interface EditorState {
   user: User | null;
   token: string | null;
   editorSettings: EditorSettings;
+  tourComplete: boolean;
+  adminStats: AdminStats | null;
   loadVersionsForDoc: (docId: string) => Promise<void>;
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -29,9 +31,12 @@ interface EditorState {
   setAuth: (user: User | null, token: string | null) => void;
   logout: () => void;
   updateSettings: (updates: Partial<EditorSettings>) => void;
+  setTourComplete: (complete: boolean) => void;
+  setAdminStats: (stats: AdminStats | null) => void;
 }
 const savedToken = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
 const savedUser = typeof window !== 'undefined' ? localStorage.getItem('lumiere_user') : null;
+const savedTour = typeof window !== 'undefined' ? localStorage.getItem('lumiere_tour_complete') === 'true' : false;
 export const useEditorStore = create<EditorState>((set, get) => ({
   content: '',
   title: 'Untitled Document',
@@ -44,6 +49,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   scrollPercentage: 0,
   user: savedUser ? JSON.parse(savedUser) : null,
   token: savedToken || null,
+  tourComplete: savedTour,
+  adminStats: null,
   editorSettings: (() => {
     const savedSettingsStr = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
     const savedSettings = savedSettingsStr ? JSON.parse(savedSettingsStr) : null;
@@ -90,4 +97,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     set({ editorSettings: newSettings });
   },
+  setTourComplete: (complete) => {
+    localStorage.setItem('lumiere_tour_complete', String(complete));
+    set({ tourComplete: complete });
+  },
+  setAdminStats: (adminStats) => set({ adminStats }),
 }));

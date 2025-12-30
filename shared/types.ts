@@ -8,7 +8,6 @@ export interface VersionSnapshot {
   content: string;
   updatedAt: number;
 }
-
 export interface Document {
   id: string;
   title: string;
@@ -18,13 +17,29 @@ export interface Document {
   userId: string;
   version: number;
   versions?: VersionSnapshot[];
+  viewCount?: number;
 }
+export type UserRole = 'user' | 'admin';
 export interface User {
   id: string;
   name: string;
   email: string;
+  role?: UserRole;
   passwordHash?: string;
   salt?: string;
+  createdAt?: number;
+}
+export interface AdminStats {
+  totalUsers: number;
+  totalDocs: number;
+  activeShares: number;
+  storageUsed: number;
+  dailyStats: ChartData[];
+}
+export interface ChartData {
+  date: string;
+  docs: number;
+  users: number;
 }
 export interface EditorSettings {
   theme: string;

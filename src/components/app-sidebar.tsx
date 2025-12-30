@@ -6,7 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/lib/store";
 import { api } from "@/lib/api-client";
-import type { Document } from "@shared/types";
+import type { Document, VersionSnapshot } from "@shared/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 export function AppSidebar(): JSX.Element {
@@ -19,6 +19,7 @@ export function AppSidebar(): JSX.Element {
   const token = useEditorStore((s) => s.token);
   const user = useEditorStore((s) => s.user);
   const logout = useEditorStore((s) => s.logout);
+  const versions = useEditorStore((s) => s.versions);
   const [search, setSearch] = useState("");
 
   const fetchDocuments = useCallback(async () => {
@@ -33,41 +34,7 @@ export function AppSidebar(): JSX.Element {
     }
   }, [setDocuments, token]);
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
-  const createDocument = useCallback(async (title = 'New Document', content = '') => {
-    try {
-      const doc = await api<Document>('/api/documents', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ title, content })
-      });
-      setDocuments(prev => [doc, ...prev]);
-      selectDocument(doc);
-      toast.success("Document created");
-    } catch (e) {
-      toast.error("Failed to create document");
-    }
-  }, [token]);
-  const deleteDocument = useCallback(async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (!confirm("Are you sure?")) return;
-    try {
-      await api(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      setDocuments(prev => prev.filter(d => d.id !== id));
-      if (activeDocumentId === id) { setActiveDocumentId(null); setContent(""); setTitle("Untitled Document"); }
-      toast.success("Document deleted");
-    } catch (e) {
-      toast.error("Failed to delete document");
-    }
-  }, [token, activeDocumentId, setDocuments, setActiveDocumentId, setContent, setTitle]);
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const content = await file.text();
-      createDocument(file.name.replace(/\.[^.]+$/, ''), content);
-    } catch {}
-    if (e.target) e.target.value = '';
-  };
+
   const selectDocument = useCallback(async (doc: Document) => {
     setActiveDocumentId(doc.id); setContent(doc.content); setTitle(doc.title);
     try {
@@ -76,6 +43,48 @@ export function AppSidebar(): JSX.Element {
       console.error(e);
     }
   }, [setActiveDocumentId, setContent, setTitle]);
+
+  const createDocument = useCallback(async (title = 'New Document', content = '') => {
+    try {
+      const doc = await api<Document>('/api/documents', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title, content })
+      });
+      const newDocs = [doc, ...documents];
+      setDocuments(newDocs);
+      selectDocument(doc);
+      toast.success("Document created");
+    } catch (e) {
+      toast.error("Failed to create document");
+    }
+  }, [token, documents, setDocuments, selectDocument]);
+
+  const deleteDocument = useCallback(async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure?")) return;
+    try {
+      await api(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      const newDocs = documents.filter(d => d.id !== id);
+      setDocuments(newDocs);
+      if (activeDocumentId === id) { setActiveDocumentId(null); setContent(""); setTitle("Untitled Document"); }
+      toast.success("Document deleted");
+    } catch (e) {
+      toast.error("Failed to delete document");
+    }
+  }, [token, activeDocumentId, documents, setDocuments, setActiveDocumentId, setContent, setTitle]);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const content = await file.text();
+      createDocument(file.name.replace(/\.[^.]+$/, ''), content);
+    } catch (e) {
+      toast.error('Failed to read file');
+    }
+    if (e.target) e.target.value = '';
+  };
   const filteredDocs = documents.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
   return (
     <Sidebar className="border-r bg-muted/20">
@@ -116,27 +125,21 @@ export function AppSidebar(): JSX.Element {
             ))}
           </SidebarMenu>
         </SidebarGroup>
-        {activeDocumentId && (() => {
-          const versions = useEditorStore(s => s.versions);
-          if (versions && versions.length > 0) {
-            return (
-              <SidebarGroup>
-                <SidebarGroupLabel>History ({versions.length})</SidebarGroupLabel>
-                <SidebarMenu>
-                  {versions.map((v: any) => (
-                    <SidebarMenuItem key={v.version}>
-                      <SidebarMenuButton onClick={() => { setContent(v.content); toast.success(`Reverted to v${v.version} - ${new Date(v.updatedAt).toLocaleDateString()}`); }} className='justify-start text-xs px-3 py-1.5 hover:bg-muted/50'>
-                        v{v.version}
-                        <span className='text-muted-foreground ml-auto text-[10px]'>{new Date(v.updatedAt).toLocaleDateString()}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroup>
-            );
-          }
-          return <></>;
-        })()}
+        {activeDocumentId && versions?.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>History ({versions.length})</SidebarGroupLabel>
+            <SidebarMenu>
+              {versions.map((v: VersionSnapshot) => (
+                <SidebarMenuItem key={v.version}>
+                  <SidebarMenuButton onClick={() => { setContent(v.content); toast.success(`Reverted to v${v.version} - ${new Date(v.updatedAt).toLocaleDateString()}`); }} className='justify-start text-xs px-3 py-1.5 hover:bg-muted/50'>
+                    v{v.version}
+                    <span className='text-muted-foreground ml-auto text-[10px]'>{new Date(v.updatedAt).toLocaleDateString()}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4 border-t space-y-2">
         <div className="flex items-center gap-3 px-2 py-2">
