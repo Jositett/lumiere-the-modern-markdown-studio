@@ -36,7 +36,7 @@ export default function DocsPage() {
         </header>
         <div className="flex flex-col md:flex-row gap-12">
           {/* Sidebar Navigation */}
-          <aside className="w-full md:w-64 shrink-0 space-y-1">
+          <aside className="w-full md:w-64 shrink-0 space-y-1 pt-4">
             {SECTIONS.map((section) => (
               <button
                 key={section.id}

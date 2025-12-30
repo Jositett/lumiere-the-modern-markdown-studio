@@ -35,7 +35,7 @@ export function PricingPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="py-20 md:py-32">
-        <div className="text-center max-w-3xl mx-auto mb-20 space-y-6">
+        <div className="pt-4 text-center max-w-3xl mx-auto mb-20 space-y-6">
           <h1 className="text-5xl md:text-7xl font-display font-bold tracking-tight">Simple, honest pricing.</h1>
           <p className="text-xl text-muted-foreground">Focus on your writing, not your subscription. Choose the plan that fits your creative workflow.</p>
         </div>

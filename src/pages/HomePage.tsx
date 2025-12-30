@@ -7,43 +7,13 @@ import { motion } from 'framer-motion';
 import { Testimonials } from '@/components/landing/Testimonials';
 import { toast } from 'sonner';
 import { useEditorStore } from '@/lib/store';
+import { TopNav } from '@/components/layout/TopNav';
 export function HomePage() {
   const user = useEditorStore(s => s.user);
   const [email, setEmail] = useState('');
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-brand-100 overflow-x-hidden">
-      <header className="fixed top-0 w-full z-50 border-b bg-background/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-white" />
-            </div>
-            <span className="text-xl font-display font-bold tracking-tight">Lumiere</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <Link to="/pricing" className="hover:text-brand-600 transition-colors">Pricing</Link>
-            <Link to="/docs" className="hover:text-brand-600 transition-colors">Docs</Link>
-            <a href="#features" className="hover:text-brand-600 transition-colors">Features</a>
-          </nav>
-          <div className="flex items-center gap-4">
-            <ThemeToggle className="static" />
-            {!user ? (
-              <>
-                <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                  <Link to="/auth">Login</Link>
-                </Button>
-                <Button asChild className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
-                  <Link to="/app">Start Writing</Link>
-                </Button>
-              </>
-            ) : (
-              <Button asChild className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
-                <Link to="/app">Go to Studio</Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+      <TopNav />
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none">
           <div className="absolute top-24 left-0 w-72 h-72 bg-brand-500/10 rounded-full blur-3xl animate-pulse" />

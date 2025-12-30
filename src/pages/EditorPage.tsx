@@ -286,13 +286,13 @@ export default function EditorPage() {
         )}
         {!isFocusMode && <AppSidebar />}
         <SidebarInset>
-          <main className="flex-1 flex flex-col min-w-0">
-            {renderHeader()}
-            <div className="flex-1 relative overflow-hidden flex flex-col">
-              <div ref={editorContainerRef} className="flex-1 relative overflow-hidden">
-                {renderEditorContent()}
-              </div>
-              <StatusBar />
+        <main className="flex-1 flex flex-col min-w-0">
+          {renderHeader()}
+          <div className="flex-1 relative overflow-hidden flex flex-col">
+            <div ref={editorContainerRef} className="h-[calc(100vh-8rem)] relative overflow-hidden">
+              {renderEditorContent()}
+            </div>
+            <StatusBar />
               <AnimatePresence>
                 {showTour && (
                   <motion.div
