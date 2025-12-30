@@ -33,7 +33,7 @@ interface EditorState {
   setFocusMode: (enabled: boolean) => void;
   setScrollPercentage: (percentage: number) => void;
   updateDocumentLocally: (id: string, updates: Partial<Document>) => void;
-  setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => void;
+  setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => Promise<void>;
   logout: () => void;
   updateSettings: (updates: Partial<EditorSettings>) => void;
   setTourComplete: (complete: boolean) => void;
@@ -97,14 +97,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateDocumentLocally: (id, updates) => set((state) => ({
     documents: state.documents.map(doc => doc.id === id ? { ...doc, ...updates } : doc)
   })),
-  setAuth: (user, token, refreshToken) => {
+  setAuth: async (user, token, refreshToken) => {
     if (token) {
       localStorage.setItem('lumiere_token', token);
       if (refreshToken) localStorage.setItem('lumiere_refresh', refreshToken);
       localStorage.setItem('lumiere_user', JSON.stringify(user));
       set({ user, token, refreshToken: refreshToken || get().refreshToken, isGuest: false, isBanned: user?.isBanned || false, subscriptionStatus: user?.subscriptionStatus || 'free' });
-      get().migrateGuestDocuments().catch(console.error);
-      get().loadDocuments().catch(console.error);
+      
+      const state = get();
+      if (state.guestDocuments.length > 0) {
+        await get().migrateGuestDocuments();
+      } else {
+        await get().loadDocuments();
+      }
     } else {
       get().logout();
     }
@@ -152,6 +157,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
   loadDocuments: async () => {
+    const { isGuest, token } = get();
+    if (isGuest || !token) return;
+    
     try {
       const resp = await api<{ items: Document[] }>('/api/documents');
       set({ documents: resp.items || [] });

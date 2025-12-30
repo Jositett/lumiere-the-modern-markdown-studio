@@ -30,7 +30,6 @@ export function AppSidebar(): JSX.Element {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectDocument = useCallback(async (doc: Document) => {
-    setActiveDocumentId(doc.id);
     setContent(doc.content);
     setTitle(doc.title);
     if (!useEditorStore.getState().isGuest) {
@@ -38,13 +37,13 @@ export function AppSidebar(): JSX.Element {
         await useEditorStore.getState().loadVersionsForDoc(doc.id);
       } catch(e) { console.error(e); }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    setActiveDocumentId(doc.id);
+  }, [setActiveDocumentId, setContent, setTitle]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const createDocument = useCallback(async (title = 'New Document', content = '') => {
     const currentIsGuest = useEditorStore.getState().isGuest;
     const currentGuestDocs = useEditorStore.getState().guestDocuments;
-    
+
     if (currentIsGuest) {
       if (currentGuestDocs.length >= 10) {
         toast.error("Guest limit reached (10 docs). Upgrade to Pro for unlimited writing!");
@@ -76,9 +75,8 @@ export function AppSidebar(): JSX.Element {
     } catch (e) {
       toast.error("Failed to create document");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addGuestDocument, selectDocument]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const deleteDoc = useCallback(async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
@@ -103,9 +101,8 @@ export function AppSidebar(): JSX.Element {
     } catch (e) {
       toast.error("Failed to delete document");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deleteGuestDocument]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleFileImport = useCallback(async(e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
@@ -121,7 +118,6 @@ export function AppSidebar(): JSX.Element {
   useEffect(() => {
     if (isGuest) initializeGuestMode();
   }, [isGuest, initializeGuestMode]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchDocuments = useCallback(async () => {
     const currentToken = useEditorStore.getState().token;
     if (!currentToken) return;
@@ -132,13 +128,9 @@ export function AppSidebar(): JSX.Element {
       toast.error('Failed to sync library');
     }
   }, []);
-  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
 
-  useEffect(() => {
-    if (token && !isGuest) {
-      fetchDocuments();
-    }
-  }, [token, isGuest, fetchDocuments]);
+
+
 
   const filteredDocs = currentDocs.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
   return (
