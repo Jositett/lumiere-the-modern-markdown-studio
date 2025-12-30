@@ -87,6 +87,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
   const internalRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef(0);
   const prevPercRef = useRef(0);
+  const scrollPercentageRef = useRef(0);
 
   const handlePreviewScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     cancelAnimationFrame(rafRef.current);
@@ -95,22 +96,26 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
       const perc = tgt.scrollTop / (tgt.scrollHeight - tgt.clientHeight);
       if (Number.isFinite(perc)) {
         prevPercRef.current = perc;
-        if (Math.abs(perc - scrollPercentage) > 0.005) {
+        if (Math.abs(perc - scrollPercentageRef.current) > 0.01) {
           setScrollPercentage(Math.max(0, Math.min(1, perc)));
         }
       }
       rafRef.current = 0;
     });
-  }, [setScrollPercentage, scrollPercentage]);
+  }, [setScrollPercentage]);
   useEffect(() => {
     const el = internalRef.current;
     if (el) {
       const targetScroll = scrollPercentage * (el.scrollHeight - el.clientHeight);
-      if (Math.abs(scrollPercentage - prevPercRef.current) > 0.005) {
+      if (Math.abs(scrollPercentage - prevPercRef.current) > 0.01) {
         prevPercRef.current = scrollPercentage;
-        el.scrollTo({ top: targetScroll, behavior: 'smooth' });
+        el.scrollTo({ top: targetScroll, behavior: 'auto' });
       }
     }
+  }, [scrollPercentage]);
+
+  useEffect(() => {
+    scrollPercentageRef.current = scrollPercentage;
   }, [scrollPercentage]);
   return (
     <div

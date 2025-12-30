@@ -4,15 +4,14 @@ import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
 import type { Document } from '@shared/types';
 export function useAutoSave() {
-  const storeSelectors = useEditorStore((s) => ({
-    content: s.content,
-    title: s.title,
-    activeDocumentId: s.activeDocumentId,
-    setSaving: s.setSaving,
-    updateDocumentLocally: s.updateDocumentLocally,
-    updateGuestDocument: s.updateGuestDocument,
-    token: s.token,
-  }));
+  const content = useEditorStore(s => s.content);
+  const title = useEditorStore(s => s.title);
+  const activeDocumentId = useEditorStore(s => s.activeDocumentId);
+  const setSaving = useEditorStore(s => s.setSaving);
+  const updateDocumentLocally = useEditorStore(s => s.updateDocumentLocally);
+  const updateGuestDocument = useEditorStore(s => s.updateGuestDocument);
+  const token = useEditorStore(s => s.token);
+  
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     // Clear previous timer
@@ -21,7 +20,6 @@ export function useAutoSave() {
     }
     // Set debounce timer for 2 seconds
     timerRef.current = setTimeout(async () => {
-      const { content, title, activeDocumentId, setSaving, updateDocumentLocally, updateGuestDocument, token } = storeSelectors;
       if (!activeDocumentId) return;
       
       setSaving(true);
@@ -49,5 +47,5 @@ export function useAutoSave() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [storeSelectors]);
+  }, [content, title, activeDocumentId, token, setSaving, updateDocumentLocally, updateGuestDocument]);
 }

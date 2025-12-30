@@ -18,6 +18,7 @@ export function MarkdownEditor() {
   const cmRef = useRef<any>(null);
   const lastScrollTopRef = useRef(0);
   const isUserScrollingRef = useRef(false);
+  const currentPercentageRef = useRef<number | undefined>(undefined);
   // Use bracket notation to avoid TS2339 property access errors on dynamic themes
   const selectedTheme = (themes as any)[themeName] || (themes as any)['vscodeDark'];
   const handleScroll = useCallback((view: EditorView) => {
@@ -27,7 +28,8 @@ export function MarkdownEditor() {
       const { scrollHeight, clientHeight, scrollTop } = view.scrollDOM;
       if (scrollHeight > clientHeight) {
         const percentage = scrollTop / (scrollHeight - clientHeight);
-        if (isFinite(percentage)) {
+        const currentPerc = currentPercentageRef.current;
+        if (isFinite(percentage) && (currentPerc === undefined || Math.abs(percentage - currentPerc) > 0.01)) {
           lastScrollTopRef.current = scrollTop;
           setScrollPercentage(percentage);
         }
@@ -36,7 +38,7 @@ export function MarkdownEditor() {
         isUserScrollingRef.current = false;
       }, 100);
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentPercentageRef, setScrollPercentage, rafRef, isUserScrollingRef, lastScrollTopRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     return () => {
@@ -58,6 +60,10 @@ export function MarkdownEditor() {
         lastScrollTopRef.current = targetScrollTop;
       }
     }
+  }, [scrollPercentage]);
+
+  useEffect(() => {
+    currentPercentageRef.current = scrollPercentage;
   }, [scrollPercentage]);
   if (!activeDocumentId) {
     return (
