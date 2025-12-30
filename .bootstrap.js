@@ -94,7 +94,8 @@ function runSetupCommands() {
     "bun add @uiw/codemirror-themes lucide-react",
     "bun add @monaco-editor/react monaco-editor",
     "bun add isomorphic-dompurify dompurify",
-    "bun add @monaco-editor/loader"
+    "bun add @monaco-editor/loader",
+    "bun add better-auth@latest"
 ];
     
     if (commands.length === 0) {
