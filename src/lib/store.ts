@@ -37,11 +37,12 @@ interface EditorState {
   updateSettings: (updates: Partial<EditorSettings>) => void;
   setTourComplete: (complete: boolean) => void;
   setAdminStats: (stats: AdminStats | null) => void;
-  // Guest Actions
+  // Guest & Migration Actions
   addGuestDocument: (doc: Document) => void;
   updateGuestDocument: (id: string, updates: Partial<Document>) => void;
   deleteGuestDocument: (id: string) => void;
   initializeGuestMode: () => void;
+  migrateGuestDocuments: () => Promise<void>;
 }
 const GUEST_LIMIT = 10;
 const savedToken = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
@@ -72,7 +73,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTitle: (title) => set({ title }),
   setActiveDocumentId: (id) => {
     const state = get();
-    const doc = state.isGuest 
+    const doc = state.isGuest
       ? state.guestDocuments.find(d => d.id === id)
       : state.documents.find(d => d.id === id);
     if (doc) {
@@ -161,4 +162,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { guestDocuments: nextDocs };
     });
   },
+  migrateGuestDocuments: async () => {
+    const state = get();
+    if (state.isGuest || !state.token || state.guestDocuments.length === 0) return;
+    try {
+      // Migrate sequentially or in parallel
+      await Promise.all(state.guestDocuments.map(async (doc) => {
+        await api('/api/documents', {
+          method: 'POST',
+          body: JSON.stringify({ title: doc.title, content: doc.content }),
+          headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+      }));
+      // Clear guest docs after success
+      set({ guestDocuments: [] });
+      localStorage.removeItem('lumiere_guest_docs');
+      // Refresh document list
+      const updatedDocs = await api<{ items: Document[] }>('/api/documents', {
+        headers: { 'Authorization': `Bearer ${state.token}` }
+      });
+      set({ documents: updatedDocs.items });
+    } catch (e) {
+      console.error('Migration failed', e);
+    }
+  }
 }));

@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Code,
   Download,
   ChevronDown,
   Printer,
-  DownloadCloud
+  DownloadCloud,
+  Star
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -18,23 +19,23 @@ import {
 import { Button } from '@/components/ui/button';
 import { useEditorStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 export function ExportMenu() {
   const content = useEditorStore(s => s.content);
   const title = useEditorStore(s => s.title);
   const activeDocumentId = useEditorStore(s => s.activeDocumentId);
+  const isGuest = useEditorStore(s => s.isGuest);
   const [html2pdfReady, setHtml2pdfReady] = useState(false);
-
   useEffect(() => {
-    if (typeof window === 'undefined' || (window as any).html2pdf) {
+    if (typeof window === 'undefined') return;
+    if ((window as any).html2pdf) {
       setHtml2pdfReady(true);
       return;
     }
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-    script.onload = () => {
-      setHtml2pdfReady(true);
-    };
+    script.onload = () => setHtml2pdfReady(true);
     document.head.appendChild(script);
   }, []);
   const downloadMarkdown = () => {
@@ -56,23 +57,9 @@ export function ExportMenu() {
   <title>${title} | Lumiere Studio</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
   <style>
-    body { 
-      box-sizing: border-box; 
-      min-width: 200px; 
-      max-width: 980px; 
-      margin: 0 auto; 
-      padding: 45px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    }
-    @media (max-width: 767px) { 
-      body { padding: 15px; } 
-    }
-    .markdown-body {
-      box-sizing: border-box;
-      min-width: 200px;
-      max-width: 980px;
-      margin: 0 auto;
-    }
+    body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    @media (max-width: 767px) { body { padding: 15px; } }
+    .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; }
   </style>
 </head>
 <body class="markdown-body">
@@ -92,63 +79,31 @@ export function ExportMenu() {
   };
   const handlePrint = () => {
     toast.info("Preparing document for print...");
-    setTimeout(() => {
-      window.print();
-    }, 500);
+    setTimeout(() => window.print(), 500);
   };
-
   const exportPDF = async () => {
+    if (isGuest) {
+      toast.error("Native PDF Export is a Professional feature.");
+      return;
+    }
     if (!html2pdfReady) {
       toast.error('PDF engine loading...');
       return;
     }
     const html2pdf = (window as any).html2pdf;
-    const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${title} | Lumiere Studio</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
-  <style>
-    body {
-      box-sizing: border-box;
-      min-width: 200px;
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 45px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    }
-    @media (max-width: 767px) {
-      body { padding: 15px; }
-    }
-    .markdown-body {
-      box-sizing: border-box;
-      min-width: 200px;
-      max-width: 980px;
-      margin: 0 auto;
-    }
-  </style>
-</head>
-<body class="markdown-body">
-  <h1>${title}</h1>
-  <hr />
-  ${content}
-</body>
-</html>`;
+    const htmlContent = `<div class="markdown-body"><h1>${title}</h1><hr />${content}</div>`;
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
+    tempDiv.className = 'markdown-body';
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-99999px';
-    tempDiv.style.top = '0';
     document.body.appendChild(tempDiv);
     try {
       await html2pdf()
         .set({
           margin: [0.5, 0.5, 0.5, 0.5],
           filename: `${title || 'document'}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+          html2canvas: { scale: 2, useCORS: true },
           jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
         })
         .from(tempDiv)
@@ -169,24 +124,49 @@ export function ExportMenu() {
           <ChevronDown className="w-3 h-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel>The Press Export Engine</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="w-64 p-2">
+        <DropdownMenuLabel className="px-2 py-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">The Press Engine</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={downloadMarkdown} className="gap-2 cursor-pointer">
+        <DropdownMenuItem onClick={downloadMarkdown} className="gap-3 cursor-pointer py-2.5 rounded-lg">
           <FileText className="w-4 h-4 text-muted-foreground" />
-          <span>Download Markdown</span>
+          <div className="flex flex-col">
+            <span className="font-medium">Download Markdown</span>
+            <span className="text-[10px] text-muted-foreground">Raw source file (.md)</span>
+          </div>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={exportHtml} className="gap-2 cursor-pointer">
+        <DropdownMenuItem onClick={exportHtml} className="gap-3 cursor-pointer py-2.5 rounded-lg">
           <Code className="w-4 h-4 text-muted-foreground" />
-          <span>Export as Styled HTML</span>
+          <div className="flex flex-col">
+            <span className="font-medium">Export Styled HTML</span>
+            <span className="text-[10px] text-muted-foreground">Standalone web page</span>
+          </div>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
-          <Printer className="w-4 h-4 text-muted-foreground" />
-          <span>Print to PDF</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={exportPDF} className="gap-2 cursor-pointer" disabled={!html2pdfReady || !activeDocumentId}>
-          <DownloadCloud className="w-4 h-4 text-muted-foreground" />
-          <span>Export PDF</span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuItem onClick={handlePrint} className="gap-3 cursor-pointer py-2.5 rounded-lg">
+                <Printer className="w-4 h-4 text-muted-foreground" />
+                <div className="flex flex-col">
+                  <span className="font-medium">Print to PDF</span>
+                  <span className="text-[10px] text-muted-foreground">Uses browser print dialog</span>
+                </div>
+              </DropdownMenuItem>
+            </TooltipTrigger>
+            <TooltipContent side="left">Recommended for quick saving</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <DropdownMenuItem 
+          onClick={exportPDF} 
+          className={cn("gap-3 cursor-pointer py-2.5 rounded-lg flex items-center justify-between", isGuest && "opacity-70")}
+        >
+          <div className="flex items-center gap-3">
+            <DownloadCloud className="w-4 h-4 text-brand-600" />
+            <div className="flex flex-col">
+              <span className="font-medium">Export Native PDF</span>
+              <span className="text-[10px] text-muted-foreground">Pixel-perfect formatting</span>
+            </div>
+          </div>
+          {isGuest && <Badge variant="secondary" className="text-[9px] bg-brand-50 text-brand-700 h-4 px-1.5"><Star className="w-2 h-2 mr-1 fill-current" /> PRO</Badge>}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

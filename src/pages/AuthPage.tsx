@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardFooter, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Sparkles, ArrowRight, Github, Mail } from 'lucide-react';
+import { ArrowRight, Github, Mail } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -15,6 +15,8 @@ export default function AuthPage() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const setAuth = useEditorStore(s => s.setAuth);
+  const guestDocuments = useEditorStore(s => s.guestDocuments);
+  const migrateGuestDocuments = useEditorStore(s => s.migrateGuestDocuments);
   const navigate = useNavigate();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +29,15 @@ export default function AuthPage() {
         body: JSON.stringify(payload)
       });
       setAuth(data.user, data.token);
-      toast.success(isLogin ? "Welcome back!" : "Account created successfully");
+      if (guestDocuments.length > 0) {
+        toast.promise(migrateGuestDocuments(), {
+          loading: 'Migrating your local drafts to the cloud...',
+          success: 'Your drafts are now safely in the cloud!',
+          error: 'Cloud migration failed, but your account is ready.'
+        });
+      } else {
+        toast.success(isLogin ? "Welcome back!" : "Account created successfully");
+      }
       navigate('/app');
     } catch (err: any) {
       toast.error(err.message || "Authentication failed");

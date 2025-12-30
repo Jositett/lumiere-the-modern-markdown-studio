@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Sparkles, Zap, Shield, Globe, ArrowRight, Check, Code, MessageSquare, Star } from 'lucide-react';
+import { Sparkles, Zap, Shield, Globe, ArrowRight, Check, Code, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Testimonials } from '@/components/landing/Testimonials';
 import { useEditorStore } from '@/lib/store';
+import { toast } from 'sonner';
 export function HomePage() {
   const navigate = useNavigate();
   const token = useEditorStore(s => s.token);
   const [email, setEmail] = useState('');
   const handleStartWriting = () => {
-    if (token) navigate('/app');
-    else navigate('/app'); // Guest mode handles redirect internally
+    // If not logged in, they enter as guest. If logged in, they go to app.
+    navigate('/app');
   };
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-brand-100 overflow-x-hidden">
@@ -31,12 +32,20 @@ export function HomePage() {
           </nav>
           <div className="flex items-center gap-4">
             <ThemeToggle className="static" />
-            <Button variant="ghost" asChild className="hidden sm:inline-flex">
-              <Link to="/auth">Login</Link>
-            </Button>
-            <Button onClick={handleStartWriting} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
-              Start Writing
-            </Button>
+            {!token ? (
+              <>
+                <Button variant="ghost" asChild className="hidden sm:inline-flex">
+                  <Link to="/auth">Login</Link>
+                </Button>
+                <Button onClick={handleStartWriting} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
+                  Start Writing
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => navigate('/app')} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
+                Go to Studio
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -57,7 +66,7 @@ export function HomePage() {
                 <Sparkles className="w-3 h-3" />
                 <span>The Future of Markdown</span>
               </motion.div>
-              <motion.h1 
+              <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
@@ -66,7 +75,7 @@ export function HomePage() {
                 Pure focus. <br />
                 <span className="text-brand-600">Zero friction.</span>
               </motion.h1>
-              <motion.p 
+              <motion.p
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
@@ -74,7 +83,7 @@ export function HomePage() {
               >
                 Lumiere is a professional-grade Markdown studio that stays out of your way. Real-time edge sync, pixel-perfect preview, and sophisticated export tools.
               </motion.p>
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
@@ -88,7 +97,7 @@ export function HomePage() {
                 </Button>
               </motion.div>
             </div>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, rotate: -2 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               transition={{ duration: 0.8, ease: "easeOut" }}
@@ -145,7 +154,6 @@ export function HomePage() {
           </div>
         </div>
       </section>
-      {/* Social Proof */}
       <Testimonials />
       {/* Pricing Teaser */}
       <section className="py-24">
@@ -165,7 +173,6 @@ export function HomePage() {
           </div>
         </div>
       </section>
-      {/* Footer */}
       <footer className="py-20 border-t bg-muted/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-12 mb-16">
@@ -178,12 +185,12 @@ export function HomePage() {
                 The minimalist studio for modern writing. Built with focus and speed at its core.
               </p>
               <form className="flex gap-2 max-w-sm" onSubmit={(e) => { e.preventDefault(); toast.success("Joined the waitlist!"); setEmail(''); }}>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email" 
-                  className="flex-1 bg-background border rounded-lg px-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" 
+                  placeholder="Enter your email"
+                  className="flex-1 bg-background border rounded-lg px-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   required
                 />
                 <Button type="submit" size="sm" className="bg-brand-600">Join Waitlist</Button>

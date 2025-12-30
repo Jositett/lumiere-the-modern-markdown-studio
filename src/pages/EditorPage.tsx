@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { ExportMenu } from '@/components/editor/ExportMenu';
 import { HelpDialog } from '@/components/editor/HelpDialog';
+import { StatusBar } from '@/components/editor/StatusBar';
 import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -77,7 +78,7 @@ export default function EditorPage() {
         )}
         {!isFocusMode && <AppSidebar />}
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 border-b flex items-center justify-between px-4 bg-background z-20">
+          <header className="h-14 border-b flex items-center justify-between px-4 bg-background z-20 shrink-0">
             <div className="flex items-center gap-3 overflow-hidden">
               {!isFocusMode && <SidebarTrigger />}
               <input
@@ -176,37 +177,40 @@ export default function EditorPage() {
               <ThemeToggle className="static" />
             </div>
           </header>
-          <div className="flex-1 relative overflow-hidden">
-            {!activeDocumentId ? (
-              <MarkdownEditor />
-            ) : isMobile ? (
-              <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-hidden">{mobileTab === 'write' ? <MarkdownEditor /> : preview}</div>
-                <div className="h-12 border-t bg-background px-4 flex items-center">
-                  <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as any)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-9">
-                      <TabsTrigger value="write">Write</TabsTrigger>
-                      <TabsTrigger value="preview">Preview</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-              </div>
-            ) : isFocusMode ? (
-              <div className="h-full w-full max-w-4xl mx-auto border-x bg-background shadow-2xl z-10">
+          <div className="flex-1 relative overflow-hidden flex flex-col">
+            <div className="flex-1 relative overflow-hidden">
+              {!activeDocumentId ? (
                 <MarkdownEditor />
-              </div>
-            ) : isPreviewMode ? (
-              <SplitPanel left={<MarkdownEditor />} right={preview} className="h-full border-none rounded-none" />
-            ) : (
-              <MarkdownEditor />
-            )}
+              ) : isMobile ? (
+                <div className="h-full flex flex-col">
+                  <div className="flex-1 overflow-hidden">{mobileTab === 'write' ? <MarkdownEditor /> : preview}</div>
+                  <div className="h-12 border-t bg-background px-4 flex items-center">
+                    <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as any)} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 h-9">
+                        <TabsTrigger value="write">Write</TabsTrigger>
+                        <TabsTrigger value="preview">Preview</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </div>
+              ) : isFocusMode ? (
+                <div className="h-full w-full max-w-4xl mx-auto border-x bg-background shadow-2xl z-10">
+                  <MarkdownEditor />
+                </div>
+              ) : isPreviewMode ? (
+                <SplitPanel left={<MarkdownEditor />} right={preview} className="h-full border-none rounded-none" />
+              ) : (
+                <MarkdownEditor />
+              )}
+            </div>
+            <StatusBar />
             <AnimatePresence>
               {showTour && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="absolute bottom-8 left-8 z-50 max-w-xs p-6 bg-brand-600 text-white rounded-3xl shadow-2xl"
+                  className="absolute bottom-12 left-8 z-50 max-w-xs p-6 bg-brand-600 text-white rounded-3xl shadow-2xl"
                 >
                   <h3 className="text-lg font-bold mb-2">Welcome to your Studio!</h3>
                   <p className="text-sm text-brand-100 mb-6">Need a hand? Explore the documentation or use the help menu for quick shortcuts.</p>
