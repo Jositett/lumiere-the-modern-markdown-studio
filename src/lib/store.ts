@@ -48,6 +48,7 @@ interface EditorState {
   setIsDark: (value: boolean) => void;
   setMfaRequired: (value: boolean) => void;
 }
+const DEFAULT_SETTINGS: EditorSettings = { theme: 'vs-dark', fontSize: 16, compactMode: false };
 export const useEditorStore = create<EditorState>((set, get) => ({
   content: '',
   title: 'Untitled Document',
@@ -72,14 +73,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   guestDocuments: [],
   editorSettings: (() => {
     const saved = localStorage.getItem('lumiere_settings');
-    if (saved) {
-      try {
-        return { theme: 'vs-dark', fontSize: 16, compactMode: false, ...JSON.parse(saved) };
-      } catch (e) {
-        return { theme: 'vs-dark', fontSize: 16, compactMode: false };
-      }
+    try {
+      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
     }
-    return { theme: 'vs-dark', fontSize: 16, compactMode: false };
   })(),
   setContent: (content) => set({ content }),
   setTitle: (title) => set({ title }),
@@ -108,36 +106,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   })),
   setAuth: async (user) => {
     if (user) {
-      set({ 
-        user, 
-        isGuest: false, 
-        isBanned: !!user.isBanned, 
+      set({
+        user,
+        isGuest: false,
+        isBanned: !!user.isBanned,
         subscriptionStatus: user.subscriptionStatus || 'free',
-        mfaRequired: false 
+        mfaRequired: false
       });
-      const state = get();
-      if (state.guestDocuments.length > 0) await get().migrateGuestDocuments();
+      if (get().guestDocuments.length > 0) await get().migrateGuestDocuments();
       else await get().loadDocuments();
     } else {
       await get().logout();
     }
   },
   logout: async () => {
-    try {
-      await authClient.signOut();
-    } catch (e) {
-      console.warn("Sign out failed", e);
-    }
-    set({ 
-      user: null, 
-      documents: [], 
-      activeDocumentId: null, 
-      content: '', 
-      title: '', 
-      isGuest: true, 
-      isBanned: false, 
-      subscriptionStatus: 'free', 
-      mfaRequired: false 
+    try { await authClient.signOut(); } catch (e) { console.warn("Sign out failed", e); }
+    set({
+      user: null,
+      documents: [],
+      activeDocumentId: null,
+      content: '',
+      title: '',
+      isGuest: true,
+      isBanned: false,
+      subscriptionStatus: 'free',
+      mfaRequired: false,
+      editorSettings: DEFAULT_SETTINGS
     });
     get().initializeGuestMode();
   },
@@ -153,12 +147,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAdminStats: (adminStats) => set({ adminStats }),
   initializeGuestMode: () => {
     const stored = localStorage.getItem('lumiere_guest_docs');
-    if (stored) {
-      try {
-        set({ guestDocuments: JSON.parse(stored) });
-      } catch (e) {
-        set({ guestDocuments: [] });
-      }
+    try {
+      if (stored) set({ guestDocuments: JSON.parse(stored) });
+    } catch {
+      set({ guestDocuments: [] });
     }
   },
   addGuestDocument: (doc) => {
@@ -184,6 +176,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setIsDark: (nextDark: boolean) => {
     localStorage.setItem('theme', nextDark ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', nextDark);
     set({ isDark: nextDark });
   },
   setMfaRequired: (mfaRequired) => set({ mfaRequired }),

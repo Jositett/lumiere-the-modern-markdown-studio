@@ -4,39 +4,34 @@ import { toast } from 'sonner';
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('Content-Type', 'application/json');
-  const performFetch = async () => {
+  try {
     const res = await fetch(path, { headers, ...init });
     if (res.status === 401) {
       toast.error('Session expired. Please login again.');
       useEditorStore.getState().logout();
-      return null;
+      throw new Error('Unauthorized');
     }
     if (res.status === 403) {
-      // Forbidden usually means not authorized for a specific resource (e.g. Admin page)
-      // but the session is still valid.
-      throw new Error('Forbidden: Access denied');
+      toast.error('Access Denied: Insufficient permissions.');
+      throw new Error('Forbidden');
     }
-    return res;
-  };
-  const finalRes = await performFetch();
-  if (finalRes === null) {
-    const error = new Error('Your session expired. Please login again.') as any;
-    error.status = 401;
-    throw error;
+    const json = (await res.json()) as ApiResponse<T>;
+    if (!res.ok || !json.success || json.data === undefined) {
+      const errorMsg = json.error || `Request failed (${res.status})`;
+      // Report unexpected failures to the backend for observability
+      if (res.status >= 500) {
+        fetch('/api/client-errors', {
+          method: 'POST',
+          body: JSON.stringify({ message: errorMsg, url: window.location.href, category: 'network' })
+        }).catch(() => {});
+      }
+      throw new Error(errorMsg);
+    }
+    return json.data;
+  } catch (err: any) {
+    if (err.message !== 'Unauthorized' && err.message !== 'Forbidden') {
+      console.error('[API CLIENT ERROR]', err);
+    }
+    throw err;
   }
-  let json: ApiResponse<T>;
-  try {
-    json = (await finalRes.json()) as ApiResponse<T>;
-  } catch {
-    const error = new Error(`Request failed (${finalRes.status})`) as any;
-    error.status = finalRes.status;
-    throw error;
-  }
-  if (!finalRes.ok || !json.success || json.data === undefined) {
-    const error = new Error(json.error || `Request failed (${finalRes.status})`) as any;
-    error.status = finalRes.status;
-    error.response = json;
-    throw error;
-  }
-  return json.data;
 }
