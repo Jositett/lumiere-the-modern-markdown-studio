@@ -6,36 +6,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Users, FileText, Share2, Database, ShieldAlert, ShieldCheck, Download, Activity, Search } from 'lucide-react';
+import { Users, FileText, Share2, ShieldAlert, ShieldCheck, Download, Activity, Search } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { User, SystemLog } from '@shared/types';
+import type { User, SystemLog, ClientError } from '@shared/types';
 export default function AdminPage() {
   const adminStats = useEditorStore(s => s.adminStats);
   const setAdminStats = useEditorStore(s => s.setAdminStats);
   const user = useEditorStore(s => s.user);
   const [platformUsers, setPlatformUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
+  const [clientErrors, setClientErrors] = useState<ClientError[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
   const fetchAdminData = useCallback(async () => {
-    setLoading(true);
     try {
-      const [stats, users, sysLogs] = await Promise.all([
+      const [stats, users, sysLogs, clientErrs] = await Promise.all([
         api<any>('/api/admin/stats'),
         api<{ items: User[] }>('/api/admin/users'),
-        api<SystemLog[]>('/api/admin/logs')
+        api<SystemLog[]>('/api/admin/logs'),
+        api<ClientError[]>('/api/admin/client-errors')
       ]);
       setAdminStats(stats);
       setPlatformUsers(users.items || []);
       setLogs(sysLogs || []);
+      setClientErrors(clientErrs || []);
     } catch (err) {
       toast.error("Security authorization failed or platform error");
-    } finally {
-      setLoading(false);
     }
-  }, [setAdminStats]);
+  }, [setAdminStats, setPlatformUsers, setLogs, setClientErrors]);
   useEffect(() => {
     if (user?.role === 'admin') {
       fetchAdminData();
@@ -46,6 +45,13 @@ export default function AdminPage() {
       u.email.toLowerCase().includes(search.toLowerCase()) ||
       u.name.toLowerCase().includes(search.toLowerCase())
     ), [platformUsers, search]);
+
+  const filteredClientErrors = useMemo(() =>
+    clientErrors.filter(e =>
+      e.message.toLowerCase().includes(search.toLowerCase()) ||
+      (e.category || '').toLowerCase().includes(search.toLowerCase()) ||
+      e.url.toLowerCase().includes(search.toLowerCase())
+    ), [clientErrors, search]);
   const toggleBan = async (targetUser: User) => {
     if (!confirm(`Are you sure you want to ${targetUser.isBanned ? 'unban' : 'ban'} ${targetUser.email}?`)) return;
     try {
@@ -113,7 +119,8 @@ export default function AdminPage() {
       <Tabs defaultValue="users" className="space-y-8">
         <TabsList className="bg-muted/50 p-1.5 rounded-2xl h-auto">
           <TabsTrigger value="users" className="rounded-xl px-8 py-2.5">User Directory</TabsTrigger>
-          <TabsTrigger value="logs" className="rounded-xl px-8 py-2.5">Security Logs</TabsTrigger>
+          <TabsTrigger value="security-logs" className="rounded-xl px-8 py-2.5">Security Logs</TabsTrigger>
+          <TabsTrigger value="client-errors" className="rounded-xl px-8 py-2.5">Client Errors ({clientErrors.length})</TabsTrigger>
           <TabsTrigger value="charts" className="rounded-xl px-8 py-2.5">Analytics</TabsTrigger>
         </TabsList>
         <TabsContent value="users" className="space-y-6">
@@ -175,7 +182,7 @@ export default function AdminPage() {
             </Table>
           </Card>
         </TabsContent>
-        <TabsContent value="logs">
+        <TabsContent value="security-logs">
           <Card className="rounded-2xl border shadow-sm p-0">
             <Table>
               <TableHeader className="bg-muted/30">
@@ -223,6 +230,47 @@ export default function AdminPage() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+          </Card>
+        </TabsContent>
+        <TabsContent value="client-errors" className="space-y-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Filter client errors..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 h-11 bg-card rounded-xl border-2 focus-visible:ring-brand-500"
+            />
+          </div>
+          <Card className="rounded-2xl border shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Message</TableHead>
+                  <TableHead>URL</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredClientErrors.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="text-xs text-muted-foreground">{new Date(e.timestamp).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                        e.category === 'react' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400' :
+                        e.category === 'network' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' :
+                        e.category === 'javascript' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' :
+                        'bg-muted text-muted-foreground'
+                      )}>{e.category || 'unknown'}</span>
+                    </TableCell>
+                    <TableCell className="font-medium max-w-xs truncate">{e.message}</TableCell>
+                    <TableCell className="text-xs max-w-xs truncate underline">{new URL(e.url).pathname}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
         </TabsContent>
       </Tabs>

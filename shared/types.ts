@@ -71,6 +71,21 @@ export interface Chat {
   id: string;
   title: string;
 }
+export interface ClientError {
+  id: string;
+  timestamp: number;
+  message: string;
+  category?: 'react' | 'javascript' | 'network' | 'user' | 'unknown';
+  url: string;
+  level: 'error' | 'warning' | 'info';
+  stackTrace?: string;
+  parsedStack?: string;
+  componentStack?: string;
+  source?: string;
+  lineno?: number;
+  colno?: number;
+}
+
 export interface ChatMessage {
   id: string;
   chatId: string;

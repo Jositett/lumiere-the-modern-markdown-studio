@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { DocumentEntity, UserEntity } from "./entities";
 import { ok, bad, notFound } from './core-utils';
-import type { Document, User, AdminStats, SystemLog } from "@shared/types";
+import type { Document, User, AdminStats, SystemLog, ClientError } from "@shared/types";
 import { SignJWT, jwtVerify } from 'jose';
 const JWT_SECRET = new TextEncoder().encode('lumiere-super-secret-key-replace-in-prod');
 const ACCESS_TOKEN_EXP = '15m';
@@ -157,6 +157,37 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('sys-logs'));
     const logs = await stub.getDoc("logs") as {data: SystemLog[], v?: number} | null;
     return ok(c, logs?.data || []);
+  });
+
+  app.post('/api/client-errors', async (c) => {
+    const payload = await c.req.json<any>();
+    const error: ClientError = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      message: payload.message || 'Unknown error',
+      category: payload.category || 'unknown',
+      url: payload.url || '',
+      level: payload.level || 'error',
+      stackTrace: payload.stack || '',
+      parsedStack: payload.parsedStack,
+      componentStack: payload.componentStack,
+      source: payload.source,
+      lineno: payload.lineno,
+      colno: payload.colno
+    };
+    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('client-logs'));
+    const current = await stub.getDoc('errors') as {data: ClientError[], v?: number} | null;
+    const errors = [error, ...(current?.data || [])].slice(0, 1000);
+    await stub.casPut('errors', current?.v ?? 0, errors);
+    return ok(c, {success: true});
+  });
+
+  app.get('/api/admin/client-errors', async (c) => {
+    const admin = await verifyAuth(c);
+    if (!admin?.role || admin.role !== 'admin') return bad(c, 'Unauthorized');
+    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('client-logs'));
+    const res = await stub.getDoc('errors') as {data: ClientError[], v?: number} | null || {data: []};
+    return ok(c, res.data);
   });
 
   // ADMIN DOCUMENTS
