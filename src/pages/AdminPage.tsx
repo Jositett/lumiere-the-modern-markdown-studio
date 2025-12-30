@@ -35,12 +35,12 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [setAdminStats]);
+  }, []);
   useEffect(() => {
     if (user?.role === 'admin') {
       fetchAdminData();
     }
-  }, [user, fetchAdminData]);
+  }, [user]);
   const filteredUsers = useMemo(() =>
     platformUsers.filter(u =>
       u.email.toLowerCase().includes(search.toLowerCase()) ||

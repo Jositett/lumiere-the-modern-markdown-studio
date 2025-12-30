@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { FileText, Plus, Search, LogOut, Trash2, ShieldCheck, Upload, User as UserIcon, CloudOff, Rocket } from "lucide-react";
 import {
-  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarInput, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarInput, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/lib/store";
@@ -27,6 +27,19 @@ export function AppSidebar(): JSX.Element {
   const deleteGuestDocument = useEditorStore((s) => s.deleteGuestDocument);
   const initializeGuestMode = useEditorStore((s) => s.initializeGuestMode);
   const [search, setSearch] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const handleFileImport = useCallback(async(e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    for (const file of files) {
+      if (!file.name.match(/\.md|txt$/i)) continue;
+      const content = await file.text();
+      const title = file.name.replace(/\.md|txt$/i, "").trim() || "Imported";
+      await createDocument(title, content);
+      toast.success(`Imported ${title}`);
+    }
+    fileInputRef.current!.value = "";
+  }, []);
   const currentDocs = isGuest ? guestDocuments : documents;
   useEffect(() => {
     if (isGuest) initializeGuestMode();
@@ -115,13 +128,44 @@ export function AppSidebar(): JSX.Element {
         </div>
         <div className="flex gap-2">
           <Button onClick={() => createDocument()} className="flex-1 justify-start gap-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg"><Plus className="w-4 h-4" /> New</Button>
+          <div className="relative flex-1">
+            <Button variant="outline" size="sm" className="w-full h-9 justify-start" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import MD
+            </Button>
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept=".md,.txt" 
+              multiple 
+              className="sr-only absolute inset-0 w-full h-full opacity-0 pointer-events-none" 
+              onChange={handleFileImport}
+            />
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <SidebarInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="pl-8 bg-background" />
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className={cn(
+        dragOver ? "ring-2 ring-brand-400/50 bg-brand-50/50 dark:bg-brand-900/30 border-brand-400/20" : "",
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden"
+      )} 
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+      onDrop={async (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const files = Array.from(e.dataTransfer.files);
+        for (const file of files.filter(f => f.name.match(/\.md|txt$/i))) {
+          const content = await file.text();
+          const title = file.name.replace(/\.md|txt$/i, "").trim() || "Dropped";
+          await createDocument(title, content);
+          toast.success(`Dropped ${title}`);
+        }
+      }}>
         <SidebarGroup>
           <SidebarGroupLabel className="flex justify-between">
             <span>Library</span>
@@ -133,8 +177,10 @@ export function AppSidebar(): JSX.Element {
                 <SidebarMenuButton isActive={activeDocumentId === doc.id} onClick={() => selectDocument(doc)} className={cn("group", activeDocumentId === doc.id && "bg-brand-50 text-brand-700 dark:bg-brand-900/20")}>
                   <FileText className="w-4 h-4 mr-2 shrink-0" />
                   <span className="truncate flex-1">{doc.title}</span>
-                  <button onClick={(e) => deleteDoc(e, doc.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                 </SidebarMenuButton>
+                <SidebarMenuAction showOnHover={true} className='hover:text-destructive [&>svg]:text-destructive group-data-[active=true]:opacity-100 z-10' onClick={(e) => deleteDoc(e, doc.id)}>
+                  <Trash2 className='w-3 h-3'/>
+                </SidebarMenuAction>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
