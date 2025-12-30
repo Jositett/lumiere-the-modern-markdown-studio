@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useEditorStore } from '@/lib/store';
 import { api } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,21 +8,31 @@ import { Button } from '@/components/ui/button';
 import { Users, FileText, Share2, Database, Trash2, ArrowUpRight, TrendingUp } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import type { User } from '@shared/types';
 export default function AdminPage() {
   const adminStats = useEditorStore(s => s.adminStats);
   const setAdminStats = useEditorStore(s => s.setAdminStats);
   const user = useEditorStore(s => s.user);
-  const token = useEditorStore(s => s.token);
+  const [platformUsers, setPlatformUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
+      setLoading(true);
       try {
-        const stats = await api<any>('/api/admin/stats');
-        setAdminStats(stats);
+        const [statsData, usersData] = await Promise.all([
+          api<any>('/api/admin/stats'),
+          api<{ items: User[] }>('/api/admin/users')
+        ]);
+        setAdminStats(statsData);
+        setPlatformUsers(usersData.items || []);
       } catch (err) {
         toast.error("Failed to load admin dashboard");
+      } finally {
+        setLoading(false);
       }
     };
-    if (user?.role === 'admin') fetchStats();
+    if (user?.role === 'admin') fetchData();
   }, [user, setAdminStats]);
   if (user?.role !== 'admin') {
     return (
@@ -37,14 +47,14 @@ export default function AdminPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="py-8 md:py-10 lg:py-12">
-        <header className="mb-10 flex items-end justify-between">
+        <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-4xl font-display font-bold tracking-tight mb-2">Operator Dashboard</h1>
             <p className="text-muted-foreground">Monitor platform growth, document usage, and system health.</p>
           </div>
           <Button variant="outline" className="gap-2">Export CSV <ArrowUpRight className="w-4 h-4" /></Button>
         </header>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-10">
           {[
             { label: 'Total Users', value: adminStats?.totalUsers || 0, icon: Users, color: 'text-blue-500' },
             { label: 'Documents', value: adminStats?.totalDocs || 0, icon: FileText, color: 'text-emerald-500' },
@@ -66,7 +76,6 @@ export default function AdminPage() {
           <TabsList className="bg-muted/50 p-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="docs">Recent Documents</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
             <Card className="p-6">
@@ -97,26 +106,46 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
           <TabsContent value="users">
-            <Card>
+            <Card className="overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Placeholder rows - would be dynamic in real implementation */}
-                  <TableRow>
-                    <TableCell className="font-medium">Admin User</TableCell>
-                    <TableCell><span className="px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-[10px] font-bold uppercase">Admin</span></TableCell>
-                    <TableCell>May 1, 2025</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
-                    </TableCell>
-                  </TableRow>
+                  {platformUsers.length > 0 ? (
+                    platformUsers.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                        <TableCell>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                            u.role === 'admin' ? "bg-brand-100 text-brand-700" : "bg-muted text-muted-foreground"
+                          )}>
+                            {u.role || 'user'}
+                          </span>
+                        </TableCell>
+                        <TableCell>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Unknown'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                        {loading ? 'Fetching users...' : 'No users found.'}
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </Card>

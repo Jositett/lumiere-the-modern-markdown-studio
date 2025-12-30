@@ -176,7 +176,7 @@ export default function EditorPage() {
                 </div>
               </div>
             ) : isFocusMode ? (
-              <div className="h-full max-w-4xl mx-auto border-x bg-background">
+              <div className="h-full w-full max-w-4xl mx-auto border-x bg-background shadow-2xl z-10">
                 <MarkdownEditor />
               </div>
             ) : isPreviewMode ? (
