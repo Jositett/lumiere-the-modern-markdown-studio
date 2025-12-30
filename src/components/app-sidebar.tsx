@@ -72,8 +72,8 @@ export function AppSidebar(): JSX.Element {
       useEditorStore.getState().setDocuments([doc, ...currentDocuments]);
       selectDocument(doc);
       toast.success("Document created");
-    } catch (e) {
-      toast.error("Failed to create document");
+    } catch (e: any) {
+      toast.error(`Document creation failed ${e.status ? `(${e.status})` : ''}: ${e.message}` || 'Unknown error');
     }
   }, [addGuestDocument, selectDocument]);
 
@@ -98,8 +98,8 @@ export function AppSidebar(): JSX.Element {
       useEditorStore.getState().setDocuments(currentDocuments.filter(d => d.id !== id));
       if (currentActiveId === id) useEditorStore.getState().setActiveDocumentId(null);
       toast.success("Document deleted");
-    } catch (e) {
-      toast.error("Failed to delete document");
+    } catch (e: any) {
+      toast.error(`Delete failed ${e.status ? `(${e.status})` : ''}: ${e.message}` || 'Unknown error');
     }
   }, [deleteGuestDocument]);
 
@@ -124,8 +124,8 @@ export function AppSidebar(): JSX.Element {
     try {
       const data = await api<{ items: Document[] }>('/api/documents');
       useEditorStore.getState().setDocuments(data.items);
-    } catch (e) {
-      toast.error('Failed to sync library');
+    } catch (e: any) {
+      toast.error(`Sync failed ${e.status ? `(${e.status})` : ''}: ${e.message}` || 'Sync failed');
     }
   }, []);
 

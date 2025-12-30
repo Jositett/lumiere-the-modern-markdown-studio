@@ -287,10 +287,22 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const entity = new DocumentEntity(c.env, id);
     const old = await entity.getState();
     if (old.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
-    const updated = { ...old, ...updates, updatedAt: Date.now(), version: old.version + 1 };
+    const newVersion = old.version + 1;
+    const newVersions = [...(old.versions || []), {version: newVersion, content: updates.content || old.content, updatedAt: Date.now() }].slice(-100);
+    const updated = {...old, ...updates, updatedAt: Date.now(), version: newVersion, versions: newVersions};
     await entity.save(updated);
     return ok(c, updated);
   });
+  app.get('/api/documents/:id/versions', async (c) => {
+    const user = await verifyAuth(c);
+    if (!user) return bad(c, 'Unauthorized');
+    const id = c.req.param('id');
+    const entity = new DocumentEntity(c.env, id);
+    const doc = await entity.getState();
+    if (doc.userId !== user.id) return bad(c, 'Forbidden');
+    return ok(c, {items: doc.versions || []});
+  });
+
   app.delete('/api/documents/:id', async (c) => {
     const user = await verifyAuth(c);
     if (!user) return bad(c, 'Unauthorized');

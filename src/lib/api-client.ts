@@ -27,7 +27,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken })
           });
-          const refreshData = await refreshRes.json() as ApiResponse<{ token: string, user: any, refreshToken: string }>;
+
+          let refreshData: ApiResponse<{ token: string, user: any, refreshToken: string }>;
+          try {
+            refreshData = await refreshRes.json() as ApiResponse<{ token: string, user: any, refreshToken: string }>;
+          } catch {
+            useEditorStore.getState().logout();
+            return null;
+          }
 
           if (refreshData.success && refreshData.data) {
             const { token, user, refreshToken: nextRefresh } = refreshData.data;
@@ -57,12 +64,25 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
   const finalRes = await performFetch();
   if (finalRes === null) {
-    throw new Error('Your session expired. Please login again.');
+    const error = new Error('Your session expired. Please login again.') as any;
+    error.status = 401;
+    throw error;
   }
 
-  const json = (await finalRes.json()) as ApiResponse<T>;
+  let json: ApiResponse<T>;
+  try {
+    json = (await finalRes.json()) as ApiResponse<T>;
+  } catch {
+    const error = new Error(`Request failed (${finalRes.status})`) as any;
+    error.status = finalRes.status;
+    throw error;
+  }
+
   if (!finalRes.ok || !json.success || json.data === undefined) {
-    throw new Error(json.error || 'The edge server rejected this request');
+    const error = new Error(json.error || `Request failed (${finalRes.status})`) as any;
+    error.status = finalRes.status;
+    error.response = json;
+    throw error;
   }
   return json.data;
 }
