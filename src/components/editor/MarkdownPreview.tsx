@@ -75,6 +75,7 @@ export const MarkdownPreview = ({
   const scrollPercentage = propsScroll !== undefined ? propsScroll : storeScroll;
   const internalRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
+  const rafRef = useRef<number>(0);
   const handlePreviewScroll = useCallback(() => {
     if (readOnly) return;
     const el = internalRef.current;
@@ -88,6 +89,14 @@ export const MarkdownPreview = ({
       setTimeout(() => { isSyncingRef.current = false; }, 50);
     }
   }, [setScrollPercentage, readOnly]);
+
+  const throttledScroll = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      handlePreviewScroll();
+      rafRef.current = 0;
+    });
+  }, [handlePreviewScroll]);
   useEffect(() => {
     const el = internalRef.current;
     if (el && !isSyncingRef.current) {
@@ -136,7 +145,7 @@ export const MarkdownPreview = ({
     <div
       id="markdown-preview"
       ref={internalRef}
-      onScroll={handlePreviewScroll}
+      onScroll={throttledScroll}
       className={cn("h-full w-full overflow-auto bg-card p-6 md:p-12 lg:p-16 scroll-smooth selection:bg-brand-100 dark:selection:bg-brand-900/50", className)}
     >
       <div className="max-w-3xl mx-auto">
