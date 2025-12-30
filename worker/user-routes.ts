@@ -6,6 +6,10 @@ import type { Document, User, AdminStats, SystemLog } from "@shared/types";
 import { SignJWT, jwtVerify } from 'jose';
 const JWT_SECRET = new TextEncoder().encode('lumiere-super-secret-key-replace-in-prod');
 const ACCESS_TOKEN_EXP = '15m';
+interface RateLimitState {
+  count: number;
+  reset: number;
+}
 // Middlewares & Helpers
 const createTokens = async (user: User) => {
   const accessToken = await new SignJWT({ sub: user.id, role: user.role, rv: user.refreshVersion || 0 })
@@ -36,21 +40,20 @@ const rateLimit = async (c: any, next: any) => {
   const ip = c.req.header('CF-Connecting-IP') || 'anon';
   const key = `rl:${ip}`;
   const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName(key));
-  // Very basic counter implementation in the DO using existing casPut
-  const doc = await stub.getDoc(key) as any;
+  const doc = await stub.getDoc<RateLimitState>(key);
   const now = Date.now();
   const state = (doc?.data && (now - doc.data.reset) < 60000) ? doc.data : { count: 0, reset: now };
   if (state.count > 100) return c.json({ success: false, error: 'Rate limit exceeded' }, 429);
-  await stub.casPut(key, doc?.v || 0, { count: state.count + 1, reset: state.reset });
+  await stub.casPut<RateLimitState>(key, doc?.v || 0, { count: state.count + 1, reset: state.reset });
   await next();
 };
 const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
   const id = crypto.randomUUID();
   const entry: SystemLog = { ...log, id, timestamp: Date.now() };
   const stub = env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName('sys-logs'));
-  const current = await stub.getDoc('logs') as any;
+  const current = await stub.getDoc<SystemLog[]>('logs');
   const logs = [entry, ...(current?.data || [])].slice(0, 100);
-  await stub.casPut('logs', current?.v || 0, logs);
+  await stub.casPut<SystemLog[]>('logs', current?.v || 0, logs);
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.use('/api/*', rateLimit);
@@ -137,7 +140,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const admin = await verifyAuth(c);
     if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
     const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('sys-logs'));
-    const logs = await stub.getDoc('logs');
+    const logs = await stub.getDoc<SystemLog[]>('logs');
     return ok(c, logs?.data || []);
   });
   // DOCUMENTS

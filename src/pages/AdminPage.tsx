@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useEditorStore } from '@/lib/store';
 import { api } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,7 +19,7 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const fetchAdminData = async () => {
+  const fetchAdminData = useCallback(async () => {
     setLoading(true);
     try {
       const [stats, users, sysLogs] = await Promise.all([
@@ -35,13 +35,15 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setAdminStats]);
   useEffect(() => {
-    if (user?.role === 'admin') fetchAdminData();
-  }, [user]);
-  const filteredUsers = useMemo(() => 
-    platformUsers.filter(u => 
-      u.email.toLowerCase().includes(search.toLowerCase()) || 
+    if (user?.role === 'admin') {
+      fetchAdminData();
+    }
+  }, [user, fetchAdminData]);
+  const filteredUsers = useMemo(() =>
+    platformUsers.filter(u =>
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
       u.name.toLowerCase().includes(search.toLowerCase())
     ), [platformUsers, search]);
   const toggleBan = async (targetUser: User) => {
@@ -117,8 +119,8 @@ export default function AdminPage() {
         <TabsContent value="users" className="space-y-6">
           <div className="relative max-w-md">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Filter by name or email..." 
+            <Input
+              placeholder="Filter by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10 h-11 bg-card rounded-xl border-2 focus-visible:ring-brand-500"
@@ -157,9 +159,9 @@ export default function AdminPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => toggleBan(u)}
                         className={cn(u.isBanned ? "text-emerald-600 hover:bg-emerald-50" : "text-destructive hover:bg-destructive/5")}
                       >
