@@ -33,15 +33,12 @@ class DOAdapter {
 
   // User methods
   async createUser(input: any): Promise<User> {
-    const id = input.id || crypto.randomUUID();
+    const id = input.id ?? crypto.randomUUID();
     const userData = {
       id,
-      name: input.name,
-      email: input.email,
-      emailVerified: input.emailVerified ? true : undefined,
-      image: input.image || null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      ...input
     };
 
     await this.casPut(`user:${id}`, 0, userData);
@@ -191,18 +188,39 @@ class DOAdapter {
   }
 }
 
-export const getAuth = (env: Env) => betterAuth({
-  database: new DOAdapter(env),
-  emailAndPassword: {
-    enabled: true,
-  },
-  plugins: [
-    twoFactor({
-      issuer: "Lumiere Studio",
-    })
-  ],
-  advanced: {
-    cookiePrefix: "lumiere",
-  },
-  trustedOrigins: ["*"],
-});
+export const getAuth = (env: Env) => {
+  const githubClientId = (env as any).GITHUB_CLIENT_ID || '';
+  const githubClientSecret = (env as any).GITHUB_CLIENT_SECRET || '';
+  const googleClientId = (env as any).GOOGLE_CLIENT_ID || '';
+  const googleClientSecret = (env as any).GOOGLE_CLIENT_SECRET || '';
+
+  type SocialProvider = { clientId: string; clientSecret: string; };
+  type SocialProvidersCfg = Partial<Record<'github' | 'google', SocialProvider>>;
+  const socialProviders: SocialProvidersCfg = {};
+  if (githubClientId && githubClientSecret) {
+    socialProviders.github = { clientId: githubClientId, clientSecret: githubClientSecret };
+  }
+  if (googleClientId && googleClientSecret) {
+    socialProviders.google = { clientId: googleClientId, clientSecret: googleClientSecret };
+  }
+
+  return betterAuth({
+    database: new DOAdapter(env),
+    emailAndPassword: {
+      enabled: true,
+    },
+    socialProviders,
+    session: {
+      expiresIn: 7 * 24 * 60 * 60 * 1000 // 7 days in ms
+    },
+    plugins: [
+      twoFactor({
+        issuer: "Lumiere Studio",
+      })
+    ],
+    advanced: {
+      cookiePrefix: "lumiere",
+    },
+    trustedOrigins: ["*"],
+  });
+};

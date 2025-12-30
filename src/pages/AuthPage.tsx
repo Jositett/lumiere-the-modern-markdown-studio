@@ -21,11 +21,17 @@ export default function AuthPage() {
   const guestDocuments = useEditorStore(s => s.guestDocuments);
   const migrateGuestDocuments = useEditorStore(s => s.migrateGuestDocuments);
   const navigate = useNavigate();
+  const handleOAuth = (provider: 'github' | 'google') => {
+    authClient.signIn.social({ provider, callbackURL: '/app' }).catch(e => {
+      toast.error('OAuth sign-in failed');
+    });
+  };
+
   const handleMfaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data, error } = useBackupCode 
+      const { data, error } = useBackupCode
         ? await twoFactor.verifyBackupCode({ code: mfaCode })
         : await twoFactor.verifyTotp({ code: mfaCode });
       if (error) throw error;
@@ -176,8 +182,8 @@ export default function AuthPage() {
                 <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or continue with</span></div>
               </div>
               <div className="grid grid-cols-2 gap-4 w-full">
-                <Button variant="outline" className="gap-2"><Github className="w-4 h-4" /> Github</Button>
-                <Button variant="outline" className="gap-2"><Mail className="w-4 h-4" /> Google</Button>
+                <Button variant="outline" className="gap-2 h-12" onClick={() => handleOAuth('github')}><Github className="w-4 h-4" /> Github</Button>
+                <Button variant="outline" className="gap-2 h-12" onClick={() => handleOAuth('google')}><Mail className="w-4 h-4" /> Google</Button>
               </div>
             </CardFooter>
           </Card>

@@ -34,18 +34,22 @@ const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
   await (stub as any).casPut("logs", current?.v ?? 0, logsArr);
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
-  app.use('/api/*', rateLimit);
-  app.on(["POST", "GET"], "/api/auth/**", async (c) => {
+  app.all('/api/auth/**', async (c) => {
     const auth = getAuth(c.env);
-    return auth.handler(c.req.raw);
+    const req = c.req.raw.clone();
+    const url = new URL(req.url);
+    url.pathname = url.pathname.replace(/^\/api\/auth/, '/auth');
+    const modReq = new Request(url.toString(), req as any);
+    return auth.handler(modReq);
   });
+  app.use('/api/*', rateLimit);
   app.get('/api/admin/stats', async (c) => {
     const admin = await verifyAuth(c);
     if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
     const usersResponse = await UserEntity.list(c.env, null, 1000) as {items: User[]};
     const docsResponse = await DocumentEntity.list(c.env, null, 1000) as {items: Document[]};
-    const users = usersResponse.items;
-    const docs = docsResponse.items;
+    const users = usersResponse?.items || [];
+    const docs = docsResponse?.items || [];
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30*24*60*60*1000);
     let dailyStats: {date: string, docs: number, users: number}[] = [];
@@ -63,7 +67,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       activeShares: docs.filter(d => d.isPublic).length,
       storageUsed: JSON.stringify(docs).length,
       bannedUsers: users.filter(u => u.isBanned).length,
-      totalStorageBytes: JSON.stringify(docs).length,
+      totalStorageBytes: JSON.stringify(docs).length + JSON.stringify(users).length,
       recentErrors: 0,
       dailyStats: dailyStats.reverse()
     };
@@ -73,7 +77,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const admin = await verifyAuth(c);
     if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
     const usersResponse = await UserEntity.list(c.env) as {items: User[]};
-    return ok(c, usersResponse);
+    return ok(c, { items: usersResponse?.items || [] });
   });
   app.get('/api/admin/logs', async (c) => {
     const admin = await verifyAuth(c);
@@ -96,6 +100,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const targetId = c.req.param('id');
     const userInst = new UserEntity(c.env, targetId);
     const user = await userInst.getState();
+    if (!user) return bad(c, 'User not found');
     const nextBanned = !user.isBanned;
     await userInst.patch({ isBanned: nextBanned, refreshVersion: (user.refreshVersion || 0) + 1 });
     await logEvent(c.env, { level: 'security', event: `User ${nextBanned ? 'banned' : 'unbanned'}`, userId: targetId });
@@ -126,6 +131,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const entity = new DocumentEntity(c.env, id);
     if (!await entity.exists()) return notFound(c);
     const state = await entity.getState();
+    if (!state) return notFound(c);
     if (!state.isPublic) return bad(c, 'Private document');
     await entity.mutate(s => ({ ...s, viewCount: (s.viewCount || 0) + 1 }));
     return ok(c, state);
@@ -137,6 +143,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const updates = await c.req.json();
     const entity = new DocumentEntity(c.env, id);
     const old = await entity.getState();
+    if (!old) return notFound(c);
     if (old.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
     const updated = {...old, ...updates, updatedAt: Date.now(), version: old.version + 1};
     await entity.save(updated);
@@ -148,6 +155,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const id = c.req.param('id');
     const entity = new DocumentEntity(c.env, id);
     const state = await entity.getState();
+    if (!state) return notFound(c);
     if (state.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
     await DocumentEntity.delete(c.env, id);
     return ok(c, { success: true });

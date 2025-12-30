@@ -1,15 +1,33 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useEditorStore } from '@/lib/store';
+import { useSession } from '@/lib/auth-client';
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const isGuest = useEditorStore(s => s.isGuest);
+  const { data: session, isPending } = useSession();
   const user = useEditorStore(s => s.user);
+  const setAuth = useEditorStore(s => s.setAuth);
   const location = useLocation();
-  if (isGuest && !user) {
+
+  useEffect(() => {
+    if (session?.data?.user && !user) {
+      setAuth(session.data.user as any);
+    }
+  }, [user, session?.data?.user?.id ?? '', setAuth]); // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
+  if (!session?.data?.session) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
+
   return <>{children}</>;
 }

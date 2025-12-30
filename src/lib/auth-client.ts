@@ -4,7 +4,7 @@ import { twoFactorClient } from "better-auth/client/plugins";
  * Better-Auth Client instance for frontend communication.
  */
 export const authClient = createAuthClient({
-  baseURL: window.location.origin,
+  baseURL: `${window.location.origin}/api`,
   plugins: [
     twoFactorClient()
   ]
