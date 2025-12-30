@@ -84,7 +84,8 @@ function runSetupCommands() {
     "bun add remark-gfm@^4.0.0",
     "bun add rehype-highlight@^7.0.1",
     "bun add react-to-print@^2.14.14",
-    "bun add @tailwindcss/typography@^0.5.13"
+    "bun add @tailwindcss/typography@^0.5.13",
+    "bun install @codemirror/language-data"
 ];
     
     if (commands.length === 0) {
