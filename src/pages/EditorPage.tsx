@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SplitPanel } from '@/components/ui/split-panel';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -46,6 +46,20 @@ export default function EditorPage() {
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState<'write' | 'preview'>('write');
   const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    const handleKeydown = useCallback((e: KeyboardEvent) => {
+      if (e.key === '?' && e.target === document.body) {
+        e.preventDefault();
+        toast.message('Shortcuts', {
+          description: '• Cmd/Ctrl + S: Save\n• Cmd/Ctrl + P: Preview Toggle\n• ? : Shortcuts\n• F11 / Cmd/Ctrl + \\ : Focus Mode\n• Cmd/Ctrl + K: Cmd Palette'
+        });
+      }
+    }, []);
+
+    document.addEventListener('keydown', handleKeydown);
+    return () => document.removeEventListener('keydown', handleKeydown);
+  }, []);
   useAutoSave();
   useEffect(() => {
     if (!tourComplete) {

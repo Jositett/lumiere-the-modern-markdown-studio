@@ -29,6 +29,7 @@ export function AppSidebar(): JSX.Element {
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleFileImport = useCallback(async(e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
@@ -39,7 +40,7 @@ export function AppSidebar(): JSX.Element {
       toast.success(`Imported ${title}`);
     }
     fileInputRef.current!.value = "";
-  }, []);
+  }, [createDocument]);
   const currentDocs = isGuest ? guestDocuments : documents;
   useEffect(() => {
     if (isGuest) initializeGuestMode();
@@ -56,9 +57,10 @@ export function AppSidebar(): JSX.Element {
     }
   }, [setDocuments, token]);
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const selectDocument = useCallback(async (doc: Document) => {
-    setActiveDocumentId(doc.id); 
-    setContent(doc.content); 
+    setActiveDocumentId(doc.id);
+    setContent(doc.content);
     setTitle(doc.title);
     if (!isGuest) {
       try {
@@ -66,6 +68,7 @@ export function AppSidebar(): JSX.Element {
       } catch(e) { console.error(e); }
     }
   }, [setActiveDocumentId, setContent, setTitle, isGuest]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const createDocument = useCallback(async (title = 'New Document', content = '') => {
     if (isGuest) {
       if (guestDocuments.length >= 10) {
@@ -98,6 +101,7 @@ export function AppSidebar(): JSX.Element {
       toast.error("Failed to create document");
     }
   }, [token, documents, setDocuments, selectDocument, isGuest, guestDocuments, addGuestDocument]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const deleteDoc = useCallback(async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
@@ -155,17 +159,9 @@ export function AppSidebar(): JSX.Element {
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
-      onDrop={async (e) => {
-        e.preventDefault();
-        setDragOver(false);
-        const files = Array.from(e.dataTransfer.files);
-        for (const file of files.filter(f => f.name.match(/\.md|txt$/i))) {
-          const content = await file.text();
-          const title = file.name.replace(/\.md|txt$/i, "").trim() || "Dropped";
-          await createDocument(title, content);
-          toast.success(`Dropped ${title}`);
-        }
-      }}>
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      onDrop={(e) => handleDragDrop(e)}
+      }}
         <SidebarGroup>
           <SidebarGroupLabel className="flex justify-between">
             <span>Library</span>

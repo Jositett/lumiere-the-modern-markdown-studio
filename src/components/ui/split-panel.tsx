@@ -20,7 +20,7 @@ export function SplitPanel({ left, right, className, defaultLayout = [50, 50] }:
       <ResizablePanel defaultSize={defaultLayout[0]} minSize={30}>
         <div className="h-full w-full">{left}</div>
       </ResizablePanel>
-      <ResizableHandle withHandle className="bg-border/50 hover:bg-brand-500 transition-colors w-1.5" />
+      <ResizableHandle withHandle className="w-2 bg-border/20 hover:bg-brand-400/40 data-[state=resizing]:bg-brand-500/60 shadow-md transition-all duration-200 cursor-col-resize flex items-center justify-center relative z-20 data-[state=open]:bg-muted/30 hover:shadow-lg hover:scale-110 hover:z-30" />
       <ResizablePanel defaultSize={defaultLayout[1]} minSize={30}>
         <div className="h-full w-full">{right}</div>
       </ResizablePanel>

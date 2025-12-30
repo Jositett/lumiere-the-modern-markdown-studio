@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -81,14 +81,35 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
 }, ref) => {
   const storeContent = useEditorStore((s) => s.content);
   const storeScroll = useEditorStore((s) => s.scrollPercentage);
+  const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
   const content = propsContent !== undefined ? propsContent : storeContent;
   const scrollPercentage = propsScroll !== undefined ? propsScroll : storeScroll;
   const internalRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef(0);
+  const prevPercRef = useRef(0);
+
+  const handlePreviewScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const tgt = e.currentTarget;
+      const perc = tgt.scrollTop / (tgt.scrollHeight - tgt.clientHeight);
+      if (Number.isFinite(perc)) {
+        prevPercRef.current = perc;
+        if (Math.abs(perc - scrollPercentage) > 0.005) {
+          setScrollPercentage(Math.max(0, Math.min(1, perc)));
+        }
+      }
+      rafRef.current = 0;
+    });
+  }, [setScrollPercentage, scrollPercentage]);
   useEffect(() => {
     const el = internalRef.current;
     if (el) {
       const targetScroll = scrollPercentage * (el.scrollHeight - el.clientHeight);
-      el.scrollTo({ top: targetScroll, behavior: 'auto' });
+      if (Math.abs(scrollPercentage - prevPercRef.current) > 0.005) {
+        prevPercRef.current = scrollPercentage;
+        el.scrollTo({ top: targetScroll, behavior: 'smooth' });
+      }
     }
   }, [scrollPercentage]);
   return (
@@ -98,6 +119,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         if (typeof ref === 'function') ref(node);
         else if (ref) (ref as any).current = node;
       }}
+      onScroll={handlePreviewScroll}
       className={cn("h-full w-full overflow-auto bg-card p-6 md:p-12 lg:p-16 scroll-smooth selection:bg-brand-100 dark:selection:bg-brand-900/50", className)}
     >
       <div className="max-w-3xl mx-auto">
