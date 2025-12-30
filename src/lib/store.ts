@@ -35,7 +35,7 @@ interface EditorState {
   setScrollPercentage: (percentage: number) => void;
   updateDocumentLocally: (id: string, updates: Partial<Document>) => void;
   setAuth: (user: User | null) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateSettings: (updates: Partial<EditorSettings>) => void;
   setTourComplete: (complete: boolean) => void;
   setAdminStats: (stats: AdminStats | null) => void;
@@ -108,17 +108,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   })),
   setAuth: async (user) => {
     if (user) {
-      set({ user, isGuest: false, isBanned: !!user.isBanned, subscriptionStatus: user.subscriptionStatus || 'free', mfaRequired: false });
+      set({ 
+        user, 
+        isGuest: false, 
+        isBanned: !!user.isBanned, 
+        subscriptionStatus: user.subscriptionStatus || 'free',
+        mfaRequired: false 
+      });
       const state = get();
       if (state.guestDocuments.length > 0) await get().migrateGuestDocuments();
       else await get().loadDocuments();
     } else {
-      get().logout();
+      await get().logout();
     }
   },
   logout: async () => {
-    await authClient.signOut();
-    set({ user: null, documents: [], activeDocumentId: null, content: '', title: '', isGuest: true, isBanned: false, subscriptionStatus: 'free', mfaRequired: false });
+    try {
+      await authClient.signOut();
+    } catch (e) {
+      console.warn("Sign out failed", e);
+    }
+    set({ 
+      user: null, 
+      documents: [], 
+      activeDocumentId: null, 
+      content: '', 
+      title: '', 
+      isGuest: true, 
+      isBanned: false, 
+      subscriptionStatus: 'free', 
+      mfaRequired: false 
+    });
     get().initializeGuestMode();
   },
   updateSettings: (updates) => {
@@ -133,7 +153,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAdminStats: (adminStats) => set({ adminStats }),
   initializeGuestMode: () => {
     const stored = localStorage.getItem('lumiere_guest_docs');
-    if (stored) set({ guestDocuments: JSON.parse(stored) });
+    if (stored) {
+      try {
+        set({ guestDocuments: JSON.parse(stored) });
+      } catch (e) {
+        set({ guestDocuments: [] });
+      }
+    }
   },
   addGuestDocument: (doc) => {
     set((state) => {
@@ -162,8 +188,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setMfaRequired: (mfaRequired) => set({ mfaRequired }),
   loadDocuments: async () => {
-    const isGuest = get().isGuest;
-    if (isGuest) return;
+    if (get().isGuest) return;
     try {
       const resp = await api<{ items: Document[] }>('/api/documents');
       set({ documents: resp.items || [] });
@@ -172,11 +197,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
   migrateGuestDocuments: async () => {
-    const isGuest = get().isGuest;
-    const guestDocuments = get().guestDocuments;
-    if (isGuest || guestDocuments.length === 0) return;
+    const state = get();
+    if (state.isGuest || state.guestDocuments.length === 0) return;
     try {
-      await Promise.all(guestDocuments.map(doc => api('/api/documents', {
+      await Promise.all(state.guestDocuments.map(doc => api('/api/documents', {
         method: 'POST',
         body: JSON.stringify({ title: doc.title, content: doc.content })
       })));

@@ -4,7 +4,7 @@ import { Card, CardFooter, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Github, Mail, ShieldCheck, KeyRound } from 'lucide-react';
+import { ArrowRight, Github, Mail, ShieldCheck, KeyRound, Loader2 } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { authClient, twoFactor } from '@/lib/auth-client';
 import { toast } from 'sonner';
@@ -18,15 +18,14 @@ export default function AuthPage() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const setAuth = useEditorStore(s => s.setAuth);
-  const guestDocuments = useEditorStore(s => s.guestDocuments);
-  const migrateGuestDocuments = useEditorStore(s => s.migrateGuestDocuments);
   const navigate = useNavigate();
-  const handleOAuth = (provider: 'github' | 'google') => {
-    authClient.signIn.social({ provider, callbackURL: '/app' }).catch(e => {
+  const handleOAuth = async (provider: 'github' | 'google') => {
+    try {
+      await authClient.signIn.social({ provider, callbackURL: '/app' });
+    } catch (e) {
       toast.error('OAuth sign-in failed');
-    });
+    }
   };
-
   const handleMfaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -38,7 +37,7 @@ export default function AuthPage() {
       const session = await authClient.getSession();
       if (session.data?.user) {
         await setAuth(session.data.user as any);
-        toast.success("Security verified. Welcome back!");
+        toast.success("Security verified");
         navigate('/app');
       }
     } catch (err: any) {
@@ -54,7 +53,7 @@ export default function AuthPage() {
       if (isLogin) {
         const { data, error } = await authClient.signIn.email({ email, password });
         if (error) {
-          if (error.status === 403 && error.code === "TWO_FACTOR_REQUIRED") {
+          if (error.status === 403 && (error as any).code === "TWO_FACTOR_REQUIRED") {
             setMfaChallenge(true);
             return;
           }
@@ -65,13 +64,6 @@ export default function AuthPage() {
         const { data, error } = await authClient.signUp.email({ email, password, name });
         if (error) throw error;
         if (data?.user) await setAuth(data.user as any);
-      }
-      if (guestDocuments.length > 0) {
-        toast.promise(migrateGuestDocuments(), {
-          loading: 'Migrating your local drafts to the cloud...',
-          success: 'Your drafts are now safely in the cloud!',
-          error: 'Cloud migration failed, but your account is ready.'
-        });
       }
       navigate('/app');
     } catch (err: any) {
@@ -90,28 +82,25 @@ export default function AuthPage() {
             </div>
             <h2 className="text-3xl font-display font-bold">Two-Factor Auth</h2>
             <p className="text-muted-foreground">
-              {useBackupCode ? "Enter a backup code to gain access" : "Open your authenticator app and enter the code"}
+              {useBackupCode ? "Enter a backup code" : "Enter code from authenticator app"}
             </p>
           </div>
-          <Card className="border-none shadow-xl">
+          <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
             <CardHeader>
               <form onSubmit={handleMfaSubmit} className="space-y-6">
-                <div className="space-y-2 text-center">
-                  <Label htmlFor="mfa-code" className="sr-only">Code</Label>
-                  <Input 
-                    id="mfa-code" 
-                    placeholder={useBackupCode ? "ABCDE-12345" : "000000"} 
-                    className="text-center text-2xl tracking-[0.5em] h-14"
-                    value={mfaCode}
-                    onChange={e => setMfaCode(e.target.value)}
-                    required
-                  />
-                </div>
+                <Input
+                  placeholder={useBackupCode ? "ABCDE-12345" : "000000"}
+                  className="text-center text-2xl tracking-[0.5em] h-14"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value)}
+                  required
+                />
                 <Button className="w-full bg-brand-600 h-12 text-lg rounded-xl" disabled={loading}>
-                  {loading ? 'Verifying...' : 'Verify Identity'}
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Verify Identity
                 </Button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setUseBackupCode(!useBackupCode)}
                   className="w-full text-xs text-brand-600 hover:underline flex items-center justify-center gap-1.5"
                 >
@@ -137,10 +126,7 @@ export default function AuthPage() {
         </div>
         <div className="relative z-10 space-y-6">
           <h1 className="text-5xl font-display font-bold leading-tight">Your story, illuminated by focus.</h1>
-          <p className="text-xl text-brand-100 max-w-md">Join thousands of writers who trust Lumiere for their most important work.</p>
-        </div>
-        <div className="relative z-10 text-sm text-brand-200">
-          &copy; 2025 Lumiere Studio. All rights reserved.
+          <p className="text-xl text-brand-100 max-w-md">The professional Markdown environment for serious writers.</p>
         </div>
       </div>
       <div className="flex items-center justify-center p-6 bg-background">
@@ -149,9 +135,6 @@ export default function AuthPage() {
             <h2 className="text-3xl font-display font-bold tracking-tight">
               {isLogin ? 'Welcome back' : 'Join Lumiere'}
             </h2>
-            <p className="text-muted-foreground">
-              {isLogin ? 'Enter your credentials to access your library' : 'Create an account to start writing today'}
-            </p>
           </div>
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
             <CardHeader className="space-y-4">
@@ -163,15 +146,16 @@ export default function AuthPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
                 </div>
                 <Button className="w-full bg-brand-600 hover:bg-brand-700 h-11 text-lg rounded-lg" disabled={loading}>
-                  {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {isLogin ? 'Login' : 'Sign Up'}
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </form>
@@ -179,7 +163,7 @@ export default function AuthPage() {
             <CardFooter className="flex flex-col gap-4">
               <div className="relative w-full">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or continue with</span></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
               </div>
               <div className="grid grid-cols-2 gap-4 w-full">
                 <Button variant="outline" className="gap-2 h-12" onClick={() => handleOAuth('github')}><Github className="w-4 h-4" /> Github</Button>
@@ -188,7 +172,7 @@ export default function AuthPage() {
             </CardFooter>
           </Card>
           <p className="text-center text-sm text-muted-foreground">
-            {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
+            {isLogin ? "New to Lumiere?" : "Already have an account?"}{' '}
             <button onClick={() => setIsLogin(!isLogin)} className="text-brand-600 font-semibold hover:underline">
               {isLogin ? 'Sign up' : 'Login'}
             </button>
