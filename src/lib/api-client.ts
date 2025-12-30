@@ -5,7 +5,7 @@ async function copyToClipboard(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
       return;
-    } catch {}
+    } catch(e) { /* Silently ignore clipboard permission error */ }
   }
   // Fallback
   const textarea = document.createElement('textarea');
@@ -44,15 +44,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       throw new Error('Forbidden');
     }
     const json = (await res.json()) as ApiResponse<T>;
-    if (!res.ok || !json.success || json.data === undefined) {
+    if (!json.success || json.data === undefined) {
       const errorMsg = json.error || `Request failed (${res.status})`;
       // Report unexpected failures to the backend for observability
-      if (res.status >= 500) {
-        fetch('/api/client-errors', {
-          method: 'POST',
-          body: JSON.stringify({ message: errorMsg, url: window.location.href, category: 'network', stack: new Error(errorMsg).stack || '' })
-        }).catch(() => {});
-      }
+      fetch('/api/client-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: errorMsg, url: window.location.href, category: 'network', stack: new Error(errorMsg).stack || '' })
+      }).catch(() => {});
       throw new Error(errorMsg);
     }
     return json.data;

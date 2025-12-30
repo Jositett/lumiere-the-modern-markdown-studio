@@ -38,7 +38,12 @@ const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
     if (res.ok) return;
   }
 };
+let routesRegistered = false;
+
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
+  if (routesRegistered) return;
+  routesRegistered = true;
+  app.use('*', rateLimit);
 
   app.post('/api/auth/register', async (c) => {
     try {
@@ -58,6 +63,12 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
         createdAt: Date.now()
       };
       await UserEntity.create(c.env, user);
+      const userList = await UserEntity.list(c.env, null, 1000);
+      if ((userList.items?.length || 0) === 1) {
+        const adminEntity = new UserEntity(c.env, id);
+        await adminEntity.patch({ role: 'admin' });
+        user.role = 'admin';
+      }
       const token = await signJwt({userId: id}, AUTH_SECRET);
       const safeUser = {...user, passwordHash: undefined, salt: undefined};
       return ok(c, {user: safeUser, token});
@@ -99,7 +110,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const stats: AdminStats = {
       totalUsers: usersResponse.items?.length || 0,
       totalDocs: docsResponse.items?.length || 0,
-      activeShares: (docsResponse.items || []).filter(d => d.isPublic).length,
+      activeShares: (docsResponse.items || []).filter((d: any) => d.isPublic).length,
       storageUsed: JSON.stringify(docsResponse.items || []).length,
       bannedUsers: (usersResponse.items || []).filter(u => u.isBanned).length,
       totalStorageBytes: JSON.stringify(docsResponse.items || []).length + JSON.stringify(usersResponse.items || []).length,
@@ -120,7 +131,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const userEntity = new UserEntity(c.env, id);
     const user = await userEntity.getState();
     if (!user) return notFound(c);
-    const nextBanned = !user.isBanned;
+    const nextBanned = !(user.isBanned ?? false);
     await userEntity.patch({ isBanned: nextBanned });
     await logEvent(c.env, { level: 'security', event: `User ${id} ${nextBanned ? 'banned' : 'unbanned'} by ${admin!.id}` });
     return ok(c, { isBanned: nextBanned });
@@ -182,6 +193,17 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await entity.mutate(s => ({ ...s, viewCount: (s.viewCount || 0) + 1 }));
     return ok(c, state);
   });
+  app.get('/api/documents/:id/versions', async (c) => {
+    const user = await verifyAuth(c);
+    if (!user) return bad(c, 'Unauthorized');
+    const id = c.req.param('id');
+    const entity = new DocumentEntity(c.env, id);
+    const doc = await entity.getState();
+    if (!doc) return notFound(c);
+    if (doc.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
+    return ok(c, { items: doc.versions || [] });
+  });
+
   app.delete('/api/documents/:id', async (c) => {
     const user = await verifyAuth(c);
     if (!user) return bad(c, 'Unauthorized');
@@ -189,7 +211,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const entity = new DocumentEntity(c.env, id);
     const state = await entity.getState();
     if (!state) return notFound(c);
-    if (state.userId !== user.id && user!.role !== 'admin') return bad(c, 'Forbidden');
+    if (state.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
     await DocumentEntity.delete(c.env, id);
     return ok(c, { success: true });
   });
