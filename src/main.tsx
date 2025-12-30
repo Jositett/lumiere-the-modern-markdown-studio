@@ -1,13 +1,11 @@
 import '@/lib/errorReporter';
 import { enableMapSet } from "immer";
 enableMapSet();
-import React, { StrictMode, useEffect } from 'react'
+import React, { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   createBrowserRouter,
   RouterProvider,
-  Navigate,
-  useLocation
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -17,14 +15,8 @@ import { HomePage } from '@/pages/HomePage'
 import EditorPage from '@/pages/EditorPage'
 import AuthPage from '@/pages/AuthPage'
 import { PublicSharePage } from '@/pages/PublicSharePage'
-import { useEditorStore } from '@/lib/store';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 const queryClient = new QueryClient();
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const token = useEditorStore(s => s.token);
-  const location = useLocation();
-  if (!token) return <Navigate to="/auth" state={{ from: location }} replace />;
-  return <>{children}</>;
-}
 const router = createBrowserRouter([
   {
     path: "/",
@@ -38,7 +30,11 @@ const router = createBrowserRouter([
   },
   {
     path: "/app",
-    element: <ProtectedRoute><EditorPage /></ProtectedRoute>,
+    element: (
+      <ProtectedRoute>
+        <EditorPage />
+      </ProtectedRoute>
+    ),
     errorElement: <RouteErrorBoundary />,
   },
   {

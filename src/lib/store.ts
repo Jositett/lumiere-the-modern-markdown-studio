@@ -8,6 +8,8 @@ interface EditorState {
   isPreviewMode: boolean;
   isSidebarOpen: boolean;
   isSaving: boolean;
+  isFocusMode: boolean;
+  scrollPercentage: number;
   user: User | null;
   token: string | null;
   editorSettings: EditorSettings;
@@ -18,6 +20,8 @@ interface EditorState {
   setPreviewMode: (enabled: boolean) => void;
   toggleSidebar: () => void;
   setSaving: (isSaving: boolean) => void;
+  setFocusMode: (enabled: boolean) => void;
+  setScrollPercentage: (percentage: number) => void;
   updateDocumentLocally: (id: string, updates: Partial<Document>) => void;
   setAuth: (user: User | null, token: string | null) => void;
   logout: () => void;
@@ -33,10 +37,12 @@ export const useEditorStore = create<EditorState>((set) => ({
   isPreviewMode: true,
   isSidebarOpen: true,
   isSaving: false,
+  isFocusMode: false,
+  scrollPercentage: 0,
   user: savedUser ? JSON.parse(savedUser) : null,
   token: savedToken || null,
   editorSettings: {
-    theme: 'dark',
+    theme: 'vscodeDark',
     fontSize: 16
   },
   setContent: (content) => set({ content }),
@@ -46,6 +52,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   setSaving: (isSaving) => set({ isSaving }),
+  setFocusMode: (enabled) => set({ isFocusMode: enabled }),
+  setScrollPercentage: (scrollPercentage) => set({ scrollPercentage }),
   updateDocumentLocally: (id, updates) => set((state) => ({
     documents: state.documents.map(doc => doc.id === id ? { ...doc, ...updates } : doc)
   })),

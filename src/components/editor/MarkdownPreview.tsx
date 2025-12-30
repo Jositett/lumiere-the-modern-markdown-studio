@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -29,13 +29,30 @@ const MermaidDiagram = ({ code }: { code: string }) => {
   if (error) return <div className="p-4 bg-destructive/10 text-destructive text-xs rounded-lg">{error}</div>;
   return <div dangerouslySetInnerHTML={{ __html: svg }} className="my-4 flex justify-center bg-white/5 p-4 rounded-xl" />;
 };
-export function MarkdownPreview({ className }: { className?: string }) {
+export const MarkdownPreview = forwardRef<HTMLDivElement, { className?: string }>(({ className }, ref) => {
   const content = useEditorStore((s) => s.content);
+  const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
+  const internalRef = useRef<HTMLDivElement>(null);
+  // Synchronize scrolling from the store
+  useEffect(() => {
+    const el = internalRef.current;
+    if (el) {
+      const targetScroll = scrollPercentage * (el.scrollHeight - el.clientHeight);
+      el.scrollTo({ top: targetScroll, behavior: 'auto' });
+    }
+  }, [scrollPercentage]);
   return (
-    <div className={cn("h-full w-full overflow-auto bg-card p-6 md:p-10", className)}>
+    <div 
+      ref={(node) => {
+        (internalRef as any).current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) (ref as any).current = node;
+      }}
+      className={cn("h-full w-full overflow-auto bg-card p-6 md:p-10 scroll-smooth", className)}
+    >
       <div className="max-w-3xl mx-auto">
         <article className={cn(
-          "prose prose-slate dark:prose-invert max-w-none",
+          "prose prose-slate dark:prose-invert max-w-none print:prose-black",
           "prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tight",
           "prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline",
           "prose-code:text-brand-600 dark:prose-code:text-brand-400 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded",
@@ -61,4 +78,5 @@ export function MarkdownPreview({ className }: { className?: string }) {
       </div>
     </div>
   );
-}
+});
+MarkdownPreview.displayName = "MarkdownPreview";

@@ -22,19 +22,19 @@ export class DocumentEntity extends IndexedEntity<Document> {
       }
     })(env, userIndexName);
     const { items: ids, next } = await idx.page(cursor, limit);
-    const rows = await Promise.all(ids.map(id => new DocumentEntity(env, id).getState()));
+    const rows = await Promise.all(ids.map((id: string) => new DocumentEntity(env, id).getState()));
     return { items: rows as Document[], next };
   }
   static async createForUser(env: any, state: Document) {
     const inst = new DocumentEntity(env, state.id);
     await inst.save(state);
     // Add to global index (for sys) and user-scoped index
-    const globalIdx = new (class extends Entity<any> { 
+    const globalIdx = new (class extends Entity<any> {
        static readonly entityName = "sys-index-root";
        constructor(env: any, name: string) { super(env, `index:${name}`); }
        async add(item: string) { await (this as any).stub.indexAddBatch([item]); }
     })(env, "documents");
-    const userIdx = new (class extends Entity<any> { 
+    const userIdx = new (class extends Entity<any> {
        static readonly entityName = "sys-index-root";
        constructor(env: any, name: string) { super(env, `index:${name}`); }
        async add(item: string) { await (this as any).stub.indexAddBatch([item]); }

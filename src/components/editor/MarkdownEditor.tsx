@@ -1,5 +1,5 @@
-import React from 'react';
-import CodeMirror from '@uiw/react-codemirror';
+import React, { useCallback } from 'react';
+import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import * as themes from '@uiw/codemirror-themes';
@@ -9,8 +9,16 @@ export function MarkdownEditor() {
   const setContent = useEditorStore((s) => s.setContent);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const editorSettings = useEditorStore((s) => s.editorSettings);
-  const themeName = (editorSettings.theme || 'vscodeDark') as keyof typeof themes;
-  const selectedTheme = themes[themeName] || themes.vscodeDark;
+  const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
+  const themeName = (editorSettings.theme || 'vscodeDark') as string;
+  const selectedTheme = (themes as any)[themeName] || themes.vscodeDark;
+  const handleScroll = useCallback((view: EditorView) => {
+    const { scrollHeight, clientHeight, scrollTop } = view.scrollDOM;
+    if (scrollHeight > clientHeight) {
+      const percentage = scrollTop / (scrollHeight - clientHeight);
+      setScrollPercentage(percentage);
+    }
+  }, [setScrollPercentage]);
   if (!activeDocumentId) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-muted/5 text-muted-foreground font-display">
@@ -26,8 +34,15 @@ export function MarkdownEditor() {
       <CodeMirror
         value={content}
         height="100%"
-        theme={selectedTheme as any}
-        extensions={[markdown({ base: markdownLanguage, codeLanguages: languages })]}
+        theme={selectedTheme}
+        extensions={[
+          markdown({ base: markdownLanguage, codeLanguages: languages }),
+          EditorView.domEventHandlers({
+            scroll: (event, view) => {
+              handleScroll(view);
+            }
+          })
+        ]}
         onChange={(value) => setContent(value)}
         basicSetup={{
           lineNumbers: true,
