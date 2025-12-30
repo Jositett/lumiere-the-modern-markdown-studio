@@ -21,6 +21,7 @@ import { useEditorStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 export function ExportMenu() {
   const content = useEditorStore(s => s.content);
   const title = useEditorStore(s => s.title);
@@ -155,8 +156,8 @@ export function ExportMenu() {
             <TooltipContent side="left">Recommended for quick saving</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuItem 
-          onClick={exportPDF} 
+        <DropdownMenuItem
+          onClick={exportPDF}
           className={cn("gap-3 cursor-pointer py-2.5 rounded-lg flex items-center justify-between", isGuest && "opacity-70")}
         >
           <div className="flex items-center gap-3">

@@ -166,7 +166,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     if (state.isGuest || !state.token || state.guestDocuments.length === 0) return;
     try {
-      // Migrate sequentially or in parallel
       await Promise.all(state.guestDocuments.map(async (doc) => {
         await api('/api/documents', {
           method: 'POST',
@@ -174,10 +173,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           headers: { 'Authorization': `Bearer ${state.token}` }
         });
       }));
-      // Clear guest docs after success
       set({ guestDocuments: [] });
       localStorage.removeItem('lumiere_guest_docs');
-      // Refresh document list
       const updatedDocs = await api<{ items: Document[] }>('/api/documents', {
         headers: { 'Authorization': `Bearer ${state.token}` }
       });
@@ -187,3 +184,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   }
 }));
+/**
+ * Derived selectors for document statistics
+ */
+export const getWordCount = (content: string) => {
+  return content.trim() ? content.trim().split(/\s+/).length : 0;
+};
+export const getReadingTime = (content: string) => {
+  const words = getWordCount(content);
+  return Math.max(1, Math.ceil(words / 200));
+};
+export const getCharacterCount = (content: string) => {
+  return content.length;
+};
