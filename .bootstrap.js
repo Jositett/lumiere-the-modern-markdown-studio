@@ -95,7 +95,8 @@ function runSetupCommands() {
     "bun add @monaco-editor/react monaco-editor",
     "bun add isomorphic-dompurify dompurify",
     "bun add @monaco-editor/loader",
-    "bun add better-auth@latest"
+    "bun add better-auth@latest",
+    "bun install better-auth qrcode.react"
 ];
     
     if (commands.length === 0) {
