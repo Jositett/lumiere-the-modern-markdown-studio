@@ -23,7 +23,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-
 export default function EditorPage() {
   const content = useEditorStore((s) => s.content);
   const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
@@ -44,13 +43,11 @@ export default function EditorPage() {
   const isGuest = useEditorStore(s => s.isGuest);
   const tourComplete = useEditorStore(s => s.tourComplete);
   const setTourComplete = useEditorStore(s => s.setTourComplete);
-  
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState<'write' | 'preview'>('write');
   const [showTour, setShowTour] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const editorContainerRef = React.useRef<HTMLDivElement>(null);
-
   React.useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -58,7 +55,6 @@ export default function EditorPage() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
-
   const handleKeydown = useCallback((e: KeyboardEvent) => {
     if (e.key === '?' && (e.target as Element).tagName !== 'INPUT' && (e.target as Element).tagName !== 'TEXTAREA') {
       e.preventDefault();
@@ -84,12 +80,10 @@ export default function EditorPage() {
       }
     }
   }, [isMobile]);
-
   useEffect(() => {
     document.addEventListener('keydown', handleKeydown);
     return () => document.removeEventListener('keydown', handleKeydown);
   }, [handleKeydown]);
-
   useAutoSave();
   useEffect(() => {
     if (!tourComplete) {
@@ -97,10 +91,8 @@ export default function EditorPage() {
       return () => clearTimeout(timer);
     }
   }, [tourComplete]);
-
   const currentDoc = documents.find(d => d.id === activeDocumentId);
   const isPublic = currentDoc?.isPublic ?? false;
-
   const togglePublic = async () => {
     if (!activeDocumentId || !token) return;
     try {
@@ -115,9 +107,7 @@ export default function EditorPage() {
       toast.error("Update failed");
     }
   };
-
   const preview = <MarkdownPreview content={content} scrollPercentage={scrollPercentage} />;
-
   const renderHeader = () => (
     <header className="h-14 border-b flex items-center justify-between px-4 bg-background z-20 shrink-0">
       <div className="flex items-center gap-3 overflow-hidden">
@@ -248,7 +238,6 @@ export default function EditorPage() {
       </div>
     </header>
   );
-
   const renderEditorContent = () => {
     if (!activeDocumentId) return <MarkdownEditor />;
     if (isMobile) {
@@ -278,7 +267,6 @@ export default function EditorPage() {
     }
     return <MarkdownEditor />;
   };
-
   return (
     <SidebarProvider defaultOpen={!isMobile}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -336,5 +324,3 @@ export default function EditorPage() {
     </SidebarProvider>
   );
 }
-```
-//
