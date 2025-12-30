@@ -79,7 +79,7 @@ export default function EditorPage() {
         document.exitFullscreen();
       }
     }
-  }, [isMobile]);
+  }, [isMobile, mobileTab]);
   useEffect(() => {
     document.addEventListener('keydown', handleKeydown);
     return () => document.removeEventListener('keydown', handleKeydown);
