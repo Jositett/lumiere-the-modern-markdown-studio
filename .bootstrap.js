@@ -97,7 +97,8 @@ function runSetupCommands() {
     "bun add @monaco-editor/loader",
     "bun add better-auth@latest",
     "bun install better-auth qrcode.react",
-    "bun install qrcode.react better-auth"
+    "bun install qrcode.react better-auth",
+    "bun add remark-math rehype-katex rehype-raw katex"
 ];
     
     if (commands.length === 0) {
