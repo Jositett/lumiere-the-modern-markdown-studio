@@ -1,228 +1,139 @@
-import { betterAuth } from "better-auth";
-import { twoFactor } from "better-auth/plugins";
-import { UserEntity } from "./entities";
 import type { Env } from './core-utils';
+import { UserEntity } from './entities';
 import type { User } from '@shared/types';
-class DOAdapter {
-  constructor(private env: Env) {}
 
-  async healthCheck(): Promise<boolean> {
-    return true;
-  }
+const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_LENGTH_BYTES = 32;
+export const AUTH_SECRET = 'lumiere-super-secret-change-in-production';
 
-  async disconnect(): Promise<void> {
+function arrayBufferToBase64url(ab: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(ab);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
 
-  get user() {
-    return {
-      create: (data: any) => this._create('user', data),
-      get: (where: any[]) => this._findOne('user', where),
-      delete: (where: any[]) => this._delete('user', where),
-    };
+function base64urlToArrayBuffer(b64url: string): ArrayBuffer {
+  const padded = b64url.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((2 - b64url.length % 4) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
+  return bytes.buffer;
+}
 
-  get account() {
-    return {
-      create: (data: any) => this._create('account', data),
-      get: (where: any[]) => this._findOne('account', where),
-      delete: (where: any[]) => this._delete('account', where),
-      link: async (account: any) => {
-        const where = [
-          { field: 'providerId', operator: 'eq', value: account.providerId },
-          { field: 'providerAccountId', operator: 'eq', value: account.providerAccountId }
-        ];
-        const existing = await this._findOne('account', where);
-        if (existing) {
-          return this._update('account', where, account);
-        }
-        return this._create('account', account);
-      },
-      unlink: ({ providerId, providerAccountId }: { providerId: string; providerAccountId: string }) => 
-        this._delete('account', [
-          { field: 'providerId', operator: 'eq', value: providerId },
-          { field: 'providerAccountId', operator: 'eq', value: providerAccountId }
-        ]),
-    };
-  }
+export async function hashPassword(password: string): Promise<{hash: string, salt: string}> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const saltB64 = arrayBufferToBase64url(salt.buffer);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const hashBuffer = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    PBKDF2_LENGTH_BYTES * 8
+  );
+  const hash = arrayBufferToBase64url(hashBuffer);
+  return { hash, salt: saltB64 };
+}
 
-  get session() {
-    return {
-      create: (data: any) => this._create('session', data),
-      get: (where: any[]) => this._findOne('session', where),
-      delete: (where: any[]) => this._delete('session', where),
-    };
-  }
+export async function verifyPassword(hash: string, salt: string, password: string): Promise<boolean> {
+  const saltBytes = base64urlToArrayBuffer(salt);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const hashBuffer = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: saltBytes,
+      iterations: PBKDF2_ITERATIONS,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    PBKDF2_LENGTH_BYTES * 8
+  );
+  const computedHash = arrayBufferToBase64url(hashBuffer);
+  return computedHash === hash;
+}
 
-  get verificationToken() {
-    return {
-      create: (data: any) => this._create('verificationToken', data),
-      get: (where: any[]) => this._findOne('verificationToken', where),
-      delete: (where: any[]) => this._delete('verificationToken', where),
-    };
-  }
+export async function signJwt(payload: Record<string, unknown>, secret: string): Promise<string> {
+  const header: Record<string, string> = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const fullPayload = { ...payload, iat: now, exp: now + 86400 };
+  
+  const headerB64 = arrayBufferToBase64url(
+    new TextEncoder().encode(JSON.stringify(header))
+  );
+  const payloadB64 = arrayBufferToBase64url(
+    new TextEncoder().encode(JSON.stringify(fullPayload))
+  );
+  const data = `${headerB64}.${payloadB64}`;
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  const sigB64 = arrayBufferToBase64url(signature);
+  
+  return `${data}.${sigB64}`;
+}
 
-  get recoveryToken() {
-    return {
-      create: (data: any) => this._create('recoveryToken', data),
-      get: (where: any[]) => this._findOne('recoveryToken', where),
-      delete: (where: any[]) => this._delete('recoveryToken', where),
-    };
-  }
-
-  get twoFactorTotpSecret() {
-    return {
-      create: (data: any) => this._create('twoFactorTotpSecret', data),
-      get: (where: any[]) => this._findOne('twoFactorTotpSecret', where),
-      update: async (data: any) => {
-        const where = [{ field: 'userId', operator: 'eq', value: data.userId }];
-        return this._update('twoFactorTotpSecret', where, data);
-      },
-      delete: (where: any[]) => this._delete('twoFactorTotpSecret', where),
-    };
-  }
-
-  get twoFactorRecoveryCode() {
-    return {
-      create: (data: any) => this._create('twoFactorRecoveryCode', data),
-      get: (where: any[]) => this._findOne('twoFactorRecoveryCode', where),
-      delete: (where: any[]) => this._delete('twoFactorRecoveryCode', where),
-    };
-  }
-
-  private getIndexStubName(modelName: string): string {
-    const map: Record<string, string> = {
-      user: 'users',
-      account: 'accounts',
-      session: 'sessions',
-      verificationToken: 'verificationTokens',
-      recoveryToken: 'recoveryTokens',
-      twoFactorTotpSecret: 'twoFactorTotpSecrets',
-      twoFactorRecoveryCode: 'twoFactorRecoveryCodes'
-    };
-    return `index:${map[modelName] || modelName + 's'}`;
-  }
-  private async getDoc(key: string) {
-    const stub = this.env.GlobalDurableObject.get(this.env.GlobalDurableObject.idFromName(key));
-    return await (stub as any).getDoc(key);
-  }
-  private async casPut(key: string, expectedV: number, data: any) {
-    const stub = this.env.GlobalDurableObject.get(this.env.GlobalDurableObject.idFromName(key));
-    return await (stub as any).casPut(key, expectedV, data);
-  }
-  private async del(key: string) {
-    const stub = this.env.GlobalDurableObject.get(this.env.GlobalDurableObject.idFromName(key));
-    await (stub as any).del(key);
-  }
-
-  private async _create(modelName: string, payload: any): Promise<any> {
-    const id = payload.id || crypto.randomUUID();
-    const key = `${modelName}:${id}`;
-    const entry = { ...payload, id };
-    await this.casPut(key, 0, entry);
+export async function verifyJwt(token: string, secret: string): Promise<{userId: string} | null> {
+  try {
+    const [headerB64, payloadB64, sigB64] = token.split('.');
+    if (!headerB64 || !payloadB64 || !sigB64) return null;
     
-    const idxStub = this.env.GlobalDurableObject.get(this.env.GlobalDurableObject.idFromName(this.getIndexStubName(modelName)));
-    await (idxStub as any).indexAddBatch([id]);
+    const headerBytes = base64urlToArrayBuffer(headerB64);
+    const header = JSON.parse(new TextDecoder().decode(headerBytes));
+    if (header.alg !== 'HS256') return null;
     
-    if (modelName === 'session' && entry.token) {
-      await this.casPut(`session-token:${entry.token}`, 0, entry);
-    }
+    const payloadBytes = base64urlToArrayBuffer(payloadB64);
+    const payload = JSON.parse(new TextDecoder().decode(payloadBytes)) as any;
     
-    return entry;
-  }
-  private async _findOne(modelName: string, where: any[]): Promise<any | null> {
-    // Optimized path for finding by ID
-    const idFilter = where.find(w => w.field === 'id' && w.operator === 'eq');
-    if (idFilter) {
-      const doc = await this.getDoc(`${modelName}:${idFilter.value}`);
-      return doc?.data || null;
-    }
+    if (payload.exp * 1000 < Date.now()) return null;
     
-    // Fast-path for session lookups by token
-    if (modelName === 'session') {
-      const tokenFilter = where.find(w => w.field === 'token' && w.operator === 'eq');
-      if (tokenFilter) {
-        const doc = await this.getDoc(`session-token:${tokenFilter.value}`);
-        if (doc?.data) return doc.data;
-      }
-    }
+    const data = `${headerB64}.${payloadB64}`;
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
     
-    // Special path: finding user by email
-    if (modelName === 'user') {
-      const emailFilter = where.find(w => w.field === 'email' && w.operator === 'eq');
-      if (emailFilter) {
-        return await UserEntity.findByEmail(this.env, emailFilter.value);
-      }
-    }
+    const signature = base64urlToArrayBuffer(sigB64);
+    const valid = await crypto.subtle.verify('HMAC', key, signature, new TextEncoder().encode(data));
     
-    // Account special path: providerId + providerAccountId
-    if (modelName === 'account') {
-      const providerFilter = where.find(w => w.field === 'providerId' && w.operator === 'eq');
-      const accountFilter = where.find(w => w.field === 'providerAccountId' && w.operator === 'eq');
-      if (providerFilter && accountFilter) {
-        const doc = await this.getDoc(`account:${providerFilter.value}:${accountFilter.value}`);
-        return doc?.data || null;
-      }
-    }
+    if (!valid || !payload.userId) return null;
     
-    // Generic fallback: Scan index
-    const idxStub = this.env.GlobalDurableObject.get(this.env.GlobalDurableObject.idFromName(this.getIndexStubName(modelName)));
-    const { keys } = await (idxStub as any).listPrefix('i:');
-    for (const k of keys) {
-      const docId = k.slice(2);
-      const doc = await this.getDoc(`${modelName}:${docId}`);
-      const item = doc?.data;
-      if (!item) continue;
-      const matches = where.every(w => {
-        if (w.operator === 'eq') return item[w.field] === w.value;
-        return true;
-      });
-      if (matches) return item;
-    }
+    return { userId: payload.userId };
+  } catch {
     return null;
   }
-
-  private async _update(modelName: string, where: any[], update: any): Promise<any | null> {
-    const existing = await this._findOne(modelName, where);
-    if (!existing) return null;
-    const key = `${modelName}:${existing.id}`;
-    const next = { ...existing, ...update, updatedAt: Date.now() };
-    for (let i = 0; i < 5; i++) {
-      const current = await this.getDoc(key);
-      if (!current) return null;
-      const res = await this.casPut(key, current.v, next);
-      if (res.ok) {
-        if (modelName === 'session' && next.token) {
-          await this.casPut(`session-token:${next.token}`, 0, next);
-        }
-        return next;
-      }
-    }
-    console.error(`[AUTH ADAPTER] CAS contention on ${key}`);
-    throw new Error("Contention in update");
-  }
-  private async _delete(modelName: string, where: any[]): Promise<void> {
-    const existing = await this._findOne(modelName, where);
-    if (!existing) return;
-    await this.del(`${modelName}:${existing.id}`);
-    if (modelName === 'session' && existing.token) {
-      await this.del(`session-token:${existing.token}`);
-    }
-    const idxStub = this.env.GlobalDurableObject.get(this.env.GlobalDurableObject.idFromName(this.getIndexStubName(modelName)));
-    await (idxStub as any).indexRemoveBatch([existing.id]);
-  }
 }
-export const getAuth = (env: Env) => {
-  return betterAuth({
-    database: new DOAdapter(env),
-    emailAndPassword: { enabled: true },
-    socialProviders: {
-      github: {
-        clientId: (env as any).GITHUB_CLIENT_ID || '',
-        clientSecret: (env as any).GITHUB_CLIENT_SECRET || ''
-      }
-    },
-    plugins: [twoFactor({ issuer: "Lumiere Studio" })],
-    advanced: { cookiePrefix: "lumiere" },
-    trustedOrigins: ["*"],
-  });
-};
+
+export async function getUser(env: Env, userId: string): Promise<User | null> {
+  const e = new UserEntity(env, userId);
+  return await e.getState();
+}

@@ -98,7 +98,8 @@ function runSetupCommands() {
     "bun add better-auth@latest",
     "bun install better-auth qrcode.react",
     "bun install qrcode.react better-auth",
-    "bun add remark-math rehype-katex rehype-raw katex"
+    "bun add remark-math rehype-katex rehype-raw katex",
+    "bun remove better-auth"
 ];
     
     if (commands.length === 0) {
