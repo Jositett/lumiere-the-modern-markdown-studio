@@ -5,11 +5,10 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sparkles, Zap, Shield, Globe, ArrowRight, Check, Code, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Testimonials } from '@/components/landing/Testimonials';
-import { useEditorStore } from '@/lib/store';
 import { toast } from 'sonner';
 export function HomePage() {
   const navigate = useNavigate();
-  const token = useEditorStore(s => s.token);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
   const [email, setEmail] = useState('');
   const handleStartWriting = () => {
     // If not logged in, they enter as guest. If logged in, they go to app.
