@@ -315,9 +315,9 @@ export default function EditorPage() {
                     <h3 className="text-lg font-bold mb-2 font-display">Welcome to your Studio!</h3>
                     <p className="text-sm text-brand-100 mb-6">Explore the documentation or use the help menu for quick shortcuts.</p>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" className="flex-1 rounded-xl h-10" onClick={() => setTourComplete(true)}>Got it</Button>
+                      <Button variant="secondary" size="sm" className="flex-1 rounded-xl h-10" onClick={() => { setTourComplete(true); setShowTour(false); }}>Got it</Button>
                       <Button variant="ghost" size="sm" asChild className="text-white hover:bg-white/10 rounded-xl h-10">
-                        <Link to="/docs" onClick={() => setTourComplete(true)}>Open Docs</Link>
+                        <Link to="/docs" onClick={(e) => { setTourComplete(true); setShowTour(false); }}>Open Docs</Link>
                       </Button>
                     </div>
                   </motion.div>
