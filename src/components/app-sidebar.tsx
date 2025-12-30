@@ -108,7 +108,7 @@ export function AppSidebar(): JSX.Element {
       loadDocuments();
     }
   }, [isGuest, user, initializeGuestMode, loadDocuments]);
-  const filteredDocs = currentDocs.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
+  const filteredDocs = currentDocs.filter(doc => doc && (doc.title ?? '').toLowerCase().includes(search.toLowerCase()));
   return (
     <Sidebar className="border-r bg-muted/20">
       <SidebarHeader className="p-4 space-y-4">

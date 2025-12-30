@@ -100,7 +100,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateDocumentLocally: (id, updates) => set((state) => {
     if (state.isGuest) {
       return {
-        guestDocuments: state.guestDocuments.map(doc => doc.id === id ? { ...doc, ...updates } : doc)
+        guestDocuments: state.guestDocuments.filter(d => d != null).map(doc => doc.id === id ? { ...doc, ...updates } : doc )
       };
     }
     return {
@@ -109,13 +109,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   }),
   setAuth: async (user) => {
     if (user) {
+      const currentState = get();
       set({
         user,
         isGuest: false,
         isBanned: !!user.isBanned,
         subscriptionStatus: user.subscriptionStatus || 'free'
       });
-      if (get().guestDocuments.length > 0) await get().migrateGuestDocuments();
+      if (currentState.guestDocuments.length > 0) await get().migrateGuestDocuments();
       else await get().loadDocuments();
     } else {
       await get().logout();
@@ -128,7 +129,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       documents: [],
       activeDocumentId: null,
       content: '',
-      title: '',
+      title: 'Untitled Document',
       isGuest: true,
       isBanned: false,
       subscriptionStatus: 'free',
@@ -149,28 +150,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   initializeGuestMode: () => {
     const stored = localStorage.getItem('lumiere_guest_docs');
     try {
-      if (stored) set({ guestDocuments: JSON.parse(stored) });
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const validDocs = parsed.filter((doc: any): doc is Document => 
+          doc && typeof doc === 'object' && typeof doc.id === 'string' && doc.id.length > 0 && 
+          typeof doc.title === 'string' && typeof doc.content === 'string'
+        );
+        set({ guestDocuments: validDocs });
+      }
     } catch {
       set({ guestDocuments: [] });
     }
   },
   addGuestDocument: (doc) => {
     set((state) => {
-      const next = [doc, ...state.guestDocuments].slice(0, 10);
+      const cleanCurrent = state.guestDocuments.filter((d): d is Document => d != null && !!d.id);
+      const next = [doc, ...cleanCurrent].slice(0, 10);
       localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
       return { guestDocuments: next };
     });
   },
   updateGuestDocument: (id, updates) => {
     set((state) => {
-      const next = state.guestDocuments.map(d => d.id === id ? { ...d, ...updates, updatedAt: Date.now() } : d);
+      const next = state.guestDocuments.filter(d => d != null).map((d) => d.id === id ? { ...d, ...updates, updatedAt: Date.now() } : d);
       localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
       return { guestDocuments: next };
     });
   },
   deleteGuestDocument: (id: string) => {
     set((state) => {
-      const next = state.guestDocuments.filter(d => d.id !== id);
+      const next = state.guestDocuments.filter((d): d is Document => d != null && d.id !== id);
       localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
       return { guestDocuments: next };
     });
@@ -192,8 +201,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   migrateGuestDocuments: async () => {
     const state = get();
     if (state.isGuest || state.guestDocuments.length === 0) return;
+    const validGuestDocs = state.guestDocuments.filter((doc): doc is Document => !!doc?.id && typeof doc.title === 'string');
     try {
-      await Promise.all(state.guestDocuments.map(doc => api('/api/documents', {
+      await Promise.all(validGuestDocs.map(doc => api('/api/documents', {
         method: 'POST',
         body: JSON.stringify({ title: doc.title, content: doc.content })
       })));
