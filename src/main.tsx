@@ -19,6 +19,7 @@ import DocsPage from '@/pages/DocsPage'
 import AdminPage from '@/pages/AdminPage'
 import { PricingPage } from '@/pages/PricingPage'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { LazyMotion, domAnimation } from 'framer-motion';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -71,9 +72,11 @@ const root = (window as any)._reactRoot || createRoot(container);
 root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
+    <ErrorBoundary>
+      <LazyMotion features={domAnimation}>
         <RouterProvider router={router} />
-      </ErrorBoundary>
+      </LazyMotion>
+    </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>,
 )
