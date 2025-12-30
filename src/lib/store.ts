@@ -76,7 +76,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   guestDocuments: [],
   editorSettings: (() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
-    return saved ? JSON.parse(saved) : { theme: 'auto', fontSize: 16 };
+    return saved ? JSON.parse(saved) : { theme: 'vs-dark', fontSize: 16 };
   })(),
   setContent: (content) => set({ content }),
   setTitle: (title) => set({ title }),
@@ -109,13 +109,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (refreshToken) localStorage.setItem('lumiere_refresh', refreshToken);
       localStorage.setItem('lumiere_user', JSON.stringify(user));
       set({ user, token, refreshToken: refreshToken || get().refreshToken, isGuest: false, isBanned: user?.isBanned || false, subscriptionStatus: user?.subscriptionStatus || 'free' });
-      
       const state = get();
-      if (state.guestDocuments.length > 0) {
-        await get().migrateGuestDocuments();
-      } else {
-        await get().loadDocuments();
-      }
+      if (state.guestDocuments.length > 0) await get().migrateGuestDocuments();
+      else await get().loadDocuments();
     } else {
       get().logout();
     }
@@ -169,7 +165,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadDocuments: async () => {
     const { isGuest, token } = get();
     if (isGuest || !token) return;
-    
     try {
       const resp = await api<{ items: Document[] }>('/api/documents');
       set({ documents: resp.items || [] });

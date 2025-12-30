@@ -7,8 +7,8 @@ export function StatusBar() {
   const isSaving = useEditorStore(s => s.isSaving);
   const isGuest = useEditorStore(s => s.isGuest);
   const activeDocumentId = useEditorStore(s => s.activeDocumentId);
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-  const charCount = content.length;
+  const wordCount = React.useMemo(() => content.trim() ? content.trim().split(/\s+/).length : 0, [content]);
+  const charCount = React.useMemo(() => content.length, [content]);
   const readingTime = Math.ceil(wordCount / 200);
   if (!activeDocumentId) return null;
   return (

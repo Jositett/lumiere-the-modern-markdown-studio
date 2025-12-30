@@ -1,9 +1,5 @@
-import React, { useCallback, useRef, useEffect } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { EditorView } from '@codemirror/view';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { languages } from '@codemirror/language-data';
-import * as themes from '@uiw/codemirror-themes';
+import React, { useCallback, useRef, useEffect, useMemo } from 'react';
+import Editor, { OnMount } from '@monaco-editor/react';
 import { useEditorStore } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme';
 export function MarkdownEditor() {
@@ -11,64 +7,49 @@ export function MarkdownEditor() {
   const setContent = useEditorStore((s) => s.setContent);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const editorSettings = useEditorStore((s) => s.editorSettings);
-  const { isDark } = useTheme();
   const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
   const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
-  const selectedTheme = React.useMemo(() => {
-    const effectiveTheme = editorSettings.theme === 'auto' ? (isDark ? 'vscodeDark' : 'vscodeLight') : (editorSettings.theme || 'vscodeDark');
-    const themeName = effectiveTheme as string;
-    return (themes as any)[themeName] || (themes as any)['vscodeDark'];
+  const { isDark } = useTheme();
+  const editorRef = useRef<any>(null);
+  const isSyncingRef = useRef(false);
+  const selectedTheme = useMemo(() => {
+    if (editorSettings.theme !== 'auto') return editorSettings.theme;
+    return isDark ? 'vs-dark' : 'light';
   }, [editorSettings.theme, isDark]);
-  const viewRef = useRef<EditorView | null>(null);
-  const rafRef = useRef(0);
-  const cmRef = useRef<any>(null);
-  const lastScrollTopRef = useRef(0);
-  const isUserScrollingRef = useRef(false);
-  const currentPercentageRef = useRef<number | undefined>(undefined);
-
-  const handleScroll = useCallback((view: EditorView) => {
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      isUserScrollingRef.current = true;
-      const { scrollHeight, clientHeight, scrollTop } = view.scrollDOM;
-      if (scrollHeight > clientHeight) {
-        const percentage = scrollTop / (scrollHeight - clientHeight);
-        const currentPerc = currentPercentageRef.current;
-        if (isFinite(percentage) && (currentPerc === undefined || Math.abs(percentage - currentPerc) > 0.01)) {
-          lastScrollTopRef.current = scrollTop;
-          setScrollPercentage(percentage);
-        }
+  const handleEditorChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      setContent(value);
+    }
+  };
+  const handleEditorMount: OnMount = (editor) => {
+    editorRef.current = editor;
+    editor.onDidScrollChange((e) => {
+      if (isSyncingRef.current) return;
+      const layoutInfo = editor.getLayoutInfo();
+      const scrollHeight = editor.getScrollHeight();
+      const scrollTop = editor.getScrollTop();
+      const visibleHeight = layoutInfo.height;
+      if (scrollHeight > visibleHeight) {
+        const percentage = scrollTop / (scrollHeight - visibleHeight);
+        isSyncingRef.current = true;
+        setScrollPercentage(percentage);
+        setTimeout(() => { isSyncingRef.current = false; }, 50);
       }
-      setTimeout(() => {
-        isUserScrollingRef.current = false;
-      }, 100);
     });
-  }, [setScrollPercentage]); // Only stable deps - refs are stable and accessed via .current
-
+  };
   useEffect(() => {
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (scrollPercentage !== undefined && viewRef.current && !isUserScrollingRef.current) {
-      const view = viewRef.current;
-      const scrollDOM = view.scrollDOM;
-      const targetScrollTop = scrollPercentage * (scrollDOM.scrollHeight - scrollDOM.clientHeight);
-      const delta = targetScrollTop - scrollDOM.scrollTop;
-      if (Math.abs(delta) > 5) {
-        scrollDOM.scrollTo({
-          top: targetScrollTop,
-          behavior: 'auto'
-        });
-        lastScrollTopRef.current = targetScrollTop;
+    if (editorRef.current && !isSyncingRef.current) {
+      const editor = editorRef.current;
+      const scrollHeight = editor.getScrollHeight();
+      const layoutInfo = editor.getLayoutInfo();
+      const visibleHeight = layoutInfo.height;
+      const targetScrollTop = scrollPercentage * (scrollHeight - visibleHeight);
+      if (Math.abs(editor.getScrollTop() - targetScrollTop) > 5) {
+        isSyncingRef.current = true;
+        editor.setScrollTop(targetScrollTop);
+        setTimeout(() => { isSyncingRef.current = false; }, 50);
       }
     }
-  }, [scrollPercentage]);
-
-  useEffect(() => {
-    currentPercentageRef.current = scrollPercentage;
   }, [scrollPercentage]);
   if (!activeDocumentId) {
     return (
@@ -82,33 +63,27 @@ export function MarkdownEditor() {
   }
   return (
     <div className="h-full w-full overflow-hidden bg-background">
-      <CodeMirror
-        value={content}
+      <Editor
         height="100%"
+        defaultLanguage="markdown"
+        value={content}
         theme={selectedTheme}
-        ref={(ref) => {
-          cmRef.current = ref;
-          if (ref?.view) viewRef.current = ref.view;
+        onChange={handleEditorChange}
+        onMount={handleEditorMount}
+        options={{
+          fontSize: editorSettings.fontSize,
+          wordWrap: 'on',
+          minimap: { enabled: false },
+          lineNumbers: 'on',
+          scrollBeyondLastLine: false,
+          automaticLayout: true,
+          padding: { top: 20 },
+          fontFamily: 'JetBrains Mono, monospace',
+          selectionHighlight: true,
+          renderLineHighlight: 'all',
+          cursorBlinking: 'smooth',
+          smoothScrolling: true,
         }}
-        extensions={[
-          markdown({ base: markdownLanguage, codeLanguages: languages }),
-          EditorView.lineWrapping,
-          EditorView.domEventHandlers({
-            scroll: (event, view) => {
-              handleScroll(view);
-            }
-          })
-        ]}
-        onChange={(value) => setContent(value)}
-        basicSetup={{
-          lineNumbers: true,
-          foldGutter: false,
-          dropCursor: true,
-          allowMultipleSelections: true,
-          indentOnInput: true,
-        }}
-        style={{ fontSize: `${editorSettings.fontSize}px` }}
-        className="h-full font-mono selection:bg-brand-500/30"
       />
     </div>
   );

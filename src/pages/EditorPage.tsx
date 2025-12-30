@@ -141,10 +141,9 @@ export default function EditorPage() {
                       <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">Auto (system)</SelectItem>
-                        <SelectItem value="vscodeDark">VS Code Dark</SelectItem>
-                        <SelectItem value="monokai">Monokai</SelectItem>
-                        <SelectItem value="vscodeLight">VS Code Light</SelectItem>
-                        <SelectItem value="dracula">Dracula</SelectItem>
+                        <SelectItem value="vs-dark">VS Code Dark</SelectItem>
+                        <SelectItem value="vs-light">VS Code Light</SelectItem>
+                        <SelectItem value="hc-black">High Contrast Black</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

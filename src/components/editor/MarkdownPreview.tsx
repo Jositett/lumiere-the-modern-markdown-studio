@@ -4,19 +4,14 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
+import DOMPurify from 'isomorphic-dompurify';
 import { useEditorStore } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import mermaid from 'mermaid';
 import { Loader2, ShieldAlert } from 'lucide-react';
-
 import 'katex/dist/katex.min.css';
-
-const sanitizeMermaid = (code: string) => {
-  // Simple heuristic for script injection prevention in diagrams
-  const dangerousPatterns = [/<script/i, /javascript:/i, /onclick/i, /onload/i, /onerror/i];
-  return !dangerousPatterns.some(p => p.test(code));
-};
 const MermaidDiagram = ({ code }: { code: string }) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -24,37 +19,20 @@ const MermaidDiagram = ({ code }: { code: string }) => {
   useEffect(() => {
     let isMounted = true;
     const render = async () => {
-      if (!sanitizeMermaid(code)) {
-        if (isMounted) {
-          setError('Security violation detected in diagram source');
-          setIsRendering(false);
-        }
-        return;
-      }
-      
       setIsRendering(true);
       setError(null);
-      
       try {
         const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
         const { svg: renderedSvg } = await mermaid.render(id, code);
-        if (isMounted) {
-          setSvg(renderedSvg);
-        }
+        if (isMounted) setSvg(renderedSvg);
       } catch (err) {
-        if (isMounted) {
-          setError('Mermaid rendering error');
-        }
+        if (isMounted) setError('Mermaid rendering error');
       } finally {
-        if (isMounted) {
-          setIsRendering(false);
-        }
+        if (isMounted) setIsRendering(false);
       }
     };
     render();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [code]);
   if (error) return (
     <div className="p-6 bg-rose-50 dark:bg-rose-950/20 text-rose-600 text-xs rounded-2xl border border-rose-100 dark:border-rose-900/50 flex items-center gap-3 font-medium">
@@ -92,67 +70,51 @@ export const MarkdownPreview = ({
   const content = propsContent !== undefined ? propsContent : storeContent;
   const scrollPercentage = propsScroll !== undefined ? propsScroll : storeScroll;
   const internalRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const prevPercRef = useRef(0);
-  const scrollPercentageRef = useRef(0);
-
+  const isSyncingRef = useRef(false);
   const handlePreviewScroll = useCallback(() => {
     const el = internalRef.current;
-    if (!el) return;
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
+    if (!el || isSyncingRef.current) return;
+    const scrollable = Math.max(1, el.scrollHeight - el.clientHeight);
+    const perc = el.scrollTop / scrollable;
+    if (Number.isFinite(perc)) {
+      isSyncingRef.current = true;
+      setScrollPercentage(perc);
+      setTimeout(() => { isSyncingRef.current = false; }, 50);
     }
-    rafRef.current = requestAnimationFrame(() => {
-      const currentEl = internalRef.current;
-      if (!currentEl) return;
-      const scrollable = Math.max(1, currentEl.scrollHeight - currentEl.clientHeight);
-      const perc = currentEl.scrollTop / scrollable;
-      if (Number.isFinite(perc)) {
-        prevPercRef.current = perc;
-        if (Math.abs(perc - scrollPercentageRef.current) > 0.01) {
-          setScrollPercentage(Math.max(0, Math.min(1, perc)));
-        }
-      }
-      rafRef.current = null;
-    });
   }, [setScrollPercentage]);
   useEffect(() => {
     const el = internalRef.current;
-    if (el) {
+    if (el && !isSyncingRef.current) {
       const scrollable = Math.max(0, el.scrollHeight - el.clientHeight);
       const targetScroll = scrollPercentage * scrollable;
-      if (Math.abs(targetScroll - el.scrollTop) > 1) {
-        prevPercRef.current = scrollPercentage;
+      if (Math.abs(targetScroll - el.scrollTop) > 5) {
+        isSyncingRef.current = true;
         el.scrollTo({ top: targetScroll, behavior: 'auto' });
+        setTimeout(() => { isSyncingRef.current = false; }, 50);
       }
     }
   }, [scrollPercentage]);
-
   useEffect(() => {
-    scrollPercentageRef.current = scrollPercentage;
-  }, [scrollPercentage]);
-
-  useEffect(() => {
-    mermaid.initialize({ 
-      startOnLoad: false, 
-      theme: isDark ? 'dark' : 'neutral', 
-      securityLevel: 'loose', 
-      fontFamily: 'Inter, sans-serif' 
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDark ? 'dark' : 'neutral',
+      securityLevel: 'loose',
+      fontFamily: 'Inter, sans-serif'
     });
   }, [isDark]);
-
+  const sanitizedContent = React.useMemo(() => {
+    return DOMPurify.sanitize(content, {
+      ADD_TAGS: ['iframe', 'svg', 'use'],
+      ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
+    });
+  }, [content]);
   useEffect(() => {
     const linkId = 'hljs-theme';
     let link = document.getElementById(linkId) as HTMLLinkElement | null;
     const href = isDark
       ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css'
       : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/default.min.css';
-
-    // Remove existing link first
-    if (link) {
-      link.remove();
-    }
-
+    if (link) link.remove();
     link = document.createElement('link');
     link.id = linkId;
     link.rel = 'stylesheet';
@@ -179,19 +141,18 @@ export const MarkdownPreview = ({
         )}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeHighlight, rehypeKatex]}
+            rehypePlugins={[rehypeRaw, rehypeHighlight, rehypeKatex]}
             components={{
               code({ node, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || '');
                 if (match?.[1] === 'mermaid') {
                   return <MermaidDiagram code={String(children).replace(/\n$/, '')} />;
                 }
-                // Prevent dangerously huge inline code blocks
                 return <code className={cn(className, "break-words")} {...props}>{children}</code>;
               }
             }}
           >
-            {content}
+            {sanitizedContent}
           </ReactMarkdown>
         </article>
       </div>
