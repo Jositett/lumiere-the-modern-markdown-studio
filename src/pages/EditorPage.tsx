@@ -143,7 +143,7 @@ export default function EditorPage() {
                         <SelectItem value="auto">Auto (system)</SelectItem>
                         <SelectItem value="vscodeDark">VS Code Dark</SelectItem>
                         <SelectItem value="monokai">Monokai</SelectItem>
-                        <SelectItem value="githubLight">GitHub Light</SelectItem>
+                        <SelectItem value="vscodeLight">VS Code Light</SelectItem>
                         <SelectItem value="dracula">Dracula</SelectItem>
                       </SelectContent>
                     </Select>
