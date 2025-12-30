@@ -33,18 +33,8 @@ export interface User {
   subscriptionStatus?: SubscriptionStatus;
   planExpiresAt?: number;
   refreshVersion?: number;
-  // Better-Auth & MFA Extensions
-  twoFactorEnabled?: boolean;
-  twoFactorSecret?: string;
-  backupCodes?: string[];
-  emailVerified?: boolean;
-  image?: string;
 }
-export interface MfaChallenge {
-  error: 'two-factor-required';
-  twoFactorToken: string;
-  userId: string;
-}
+
 export interface SystemLog {
   id: string;
   timestamp: number;

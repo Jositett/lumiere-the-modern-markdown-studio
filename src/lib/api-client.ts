@@ -4,6 +4,12 @@ import { toast } from 'sonner';
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('Content-Type', 'application/json');
+  
+  const token = localStorage.getItem('lumiere_token');
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  
   try {
     const res = await fetch(path, { headers, ...init });
     if (res.status === 401) {
