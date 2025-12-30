@@ -8,6 +8,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
+import { TopNav } from '@/components/layout/TopNav';
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -37,8 +38,9 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
+    <>
       <TopNav />
+      <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-brand-600 text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_20%,white,transparent)]" />
         <div className="relative z-10 flex items-center gap-2 text-2xl font-display font-bold">
@@ -88,5 +90,6 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

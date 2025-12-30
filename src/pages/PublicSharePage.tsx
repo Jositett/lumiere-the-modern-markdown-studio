@@ -6,6 +6,7 @@ import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, ArrowLeft, Sparkles } from 'lucide-react';
+import { TopNav } from '@/components/layout/TopNav';
 export function PublicSharePage() {
   const { id } = useParams<{ id: string }>();
   const [doc, setDoc] = useState<Document | null>(null);
