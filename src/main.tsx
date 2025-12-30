@@ -13,6 +13,7 @@ import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import '@/index.css'
 import { HomePage } from '@/pages/HomePage'
 import EditorPage from '@/pages/EditorPage'
+import { PublicSharePage } from '@/pages/PublicSharePage'
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -23,6 +24,11 @@ const router = createBrowserRouter([
   {
     path: "/app",
     element: <EditorPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/s/:id",
+    element: <PublicSharePage />,
     errorElement: <RouteErrorBoundary />,
   }
 ]);

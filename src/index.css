@@ -67,22 +67,43 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
+}
+/* Custom Selection Color */
+::selection {
+  @apply bg-brand-100 text-brand-900;
+}
+.dark ::selection {
+  @apply bg-brand-900 text-brand-100;
+}
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
 }
 /* Print Styles for PDF Export */
 @media print {
-  header, 
-  [role="menubar"], 
+  header,
+  footer,
+  [role="menubar"],
   .cm-editor,
   .sidebar,
   [data-sidebar="sidebar"],
-  button {
+  button,
+  .no-print {
     display: none !important;
   }
   .prose {
     max-width: 100% !important;
-    padding: 0 !important;
+    padding: 2rem !important;
+    margin: 0 auto !important;
   }
   body, .main, main {
     background: white !important;
@@ -92,13 +113,17 @@
     height: auto !important;
     overflow: visible !important;
   }
-  .resizable-panel-group {
+  .bg-card {
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .max-w-7xl {
+    max-width: 100% !important;
+  }
+  /* Force content to fill width */
+  .resizable-panel-group, 
+  .flex-1 {
     display: block !important;
-  }
-  .resizable-panel:first-child {
-    display: none !important;
-  }
-  .resizable-panel:last-child {
     width: 100% !important;
   }
 }

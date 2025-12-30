@@ -17,9 +17,18 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       id: crypto.randomUUID(),
       title: title?.trim() || "Untitled Document",
       content: content || "",
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      isPublic: false
     };
     return ok(c, await DocumentEntity.create(c.env, doc));
+  });
+  app.get('/api/shared/documents/:id', async (c) => {
+    const id = c.req.param('id');
+    const entity = new DocumentEntity(c.env, id);
+    if (!await entity.exists()) return notFound(c, 'document not found');
+    const state = await entity.getState();
+    if (!state.isPublic) return bad(c, 'this document is private');
+    return ok(c, state);
   });
   app.get('/api/documents/:id', async (c) => {
     const id = c.req.param('id');

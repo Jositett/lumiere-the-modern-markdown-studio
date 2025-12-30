@@ -8,6 +8,7 @@ export interface Document {
   title: string;
   content: string;
   updatedAt: number;
+  isPublic?: boolean;
 }
 export interface User {
   id: string;
