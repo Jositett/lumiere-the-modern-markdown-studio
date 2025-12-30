@@ -57,11 +57,13 @@ interface MarkdownPreviewProps {
   content?: string;
   scrollPercentage?: number;
   className?: string;
+  readOnly?: boolean;
 }
 export const MarkdownPreview = ({
   content: propsContent,
   scrollPercentage: propsScroll,
-  className
+  className,
+  readOnly = false
 }: MarkdownPreviewProps) => {
   const storeContent = useEditorStore((s) => s.content);
   const { isDark } = useTheme();
@@ -72,22 +74,25 @@ export const MarkdownPreview = ({
   const internalRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
   const handlePreviewScroll = useCallback(() => {
+    if (readOnly) return; // Prevent public viewers or static views from updating global state
     const el = internalRef.current;
     if (!el || isSyncingRef.current) return;
-    const scrollable = Math.max(1, el.scrollHeight - el.clientHeight);
+    const scrollable = el.scrollHeight - el.clientHeight;
+    if (scrollable <= 10) return;
     const perc = el.scrollTop / scrollable;
     if (Number.isFinite(perc)) {
       isSyncingRef.current = true;
       setScrollPercentage(perc);
       setTimeout(() => { isSyncingRef.current = false; }, 50);
     }
-  }, [setScrollPercentage]);
+  }, [setScrollPercentage, readOnly]);
   useEffect(() => {
     const el = internalRef.current;
     if (el && !isSyncingRef.current) {
-      const scrollable = Math.max(0, el.scrollHeight - el.clientHeight);
+      const scrollable = el.scrollHeight - el.clientHeight;
+      if (scrollable <= 0) return;
       const targetScroll = scrollPercentage * scrollable;
-      if (Math.abs(targetScroll - el.scrollTop) > 5) {
+      if (Math.abs(targetScroll - el.scrollTop) > 2) { // Tiny threshold to prevent jitter
         isSyncingRef.current = true;
         el.scrollTo({ top: targetScroll, behavior: 'auto' });
         setTimeout(() => { isSyncingRef.current = false; }, 50);

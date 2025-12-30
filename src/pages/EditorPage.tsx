@@ -142,7 +142,7 @@ export default function EditorPage() {
                       <SelectContent>
                         <SelectItem value="auto">Auto (system)</SelectItem>
                         <SelectItem value="vs-dark">VS Code Dark</SelectItem>
-                        <SelectItem value="vs-light">VS Code Light</SelectItem>
+                        <SelectItem value="vs">VS Code Light</SelectItem>
                         <SelectItem value="hc-black">High Contrast Black</SelectItem>
                       </SelectContent>
                     </Select>

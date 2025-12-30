@@ -14,7 +14,7 @@ export function MarkdownEditor() {
   const isSyncingRef = useRef(false);
   const selectedTheme = useMemo(() => {
     if (editorSettings.theme !== 'auto') return editorSettings.theme;
-    return isDark ? 'vs-dark' : 'light';
+    return isDark ? 'vs-dark' : 'vs';
   }, [editorSettings.theme, isDark]);
   const handleEditorChange = (value: string | undefined) => {
     if (value !== undefined) {
@@ -29,8 +29,9 @@ export function MarkdownEditor() {
       const scrollHeight = editor.getScrollHeight();
       const scrollTop = editor.getScrollTop();
       const visibleHeight = layoutInfo.height;
-      if (scrollHeight > visibleHeight) {
-        const percentage = scrollTop / (scrollHeight - visibleHeight);
+      const scrollable = scrollHeight - visibleHeight;
+      if (scrollable > 10) { // Only sync if there is significant scrollable area
+        const percentage = scrollTop / scrollable;
         isSyncingRef.current = true;
         setScrollPercentage(percentage);
         setTimeout(() => { isSyncingRef.current = false; }, 50);
@@ -43,8 +44,10 @@ export function MarkdownEditor() {
       const scrollHeight = editor.getScrollHeight();
       const layoutInfo = editor.getLayoutInfo();
       const visibleHeight = layoutInfo.height;
-      const targetScrollTop = scrollPercentage * (scrollHeight - visibleHeight);
-      if (Math.abs(editor.getScrollTop() - targetScrollTop) > 5) {
+      const scrollable = scrollHeight - visibleHeight;
+      if (scrollable <= 0) return;
+      const targetScrollTop = scrollPercentage * scrollable;
+      if (Math.abs(editor.getScrollTop() - targetScrollTop) > 2) { // Tiny threshold to prevent jitter
         isSyncingRef.current = true;
         editor.setScrollTop(targetScrollTop);
         setTimeout(() => { isSyncingRef.current = false; }, 50);
@@ -83,6 +86,10 @@ export function MarkdownEditor() {
           renderLineHighlight: 'all',
           cursorBlinking: 'smooth',
           smoothScrolling: true,
+          scrollbar: {
+            vertical: 'auto',
+            horizontal: 'auto',
+          }
         }}
       />
     </div>

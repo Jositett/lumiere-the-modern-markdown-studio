@@ -72,7 +72,7 @@ export function PublicSharePage() {
           </div>
         </div>
         <div className="bg-card rounded-3xl border shadow-sm overflow-hidden min-h-[600px]">
-          <MarkdownPreview content={doc.content} className="p-8 md:p-16" />
+          <MarkdownPreview content={doc.content} readOnly className="p-8 md:p-16" />
         </div>
         <footer className="mt-16 py-8 border-t text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-xs font-medium border border-brand-100">
