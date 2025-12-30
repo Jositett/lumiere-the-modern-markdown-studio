@@ -90,8 +90,9 @@ function runSetupCommands() {
     "bun add remark-parse remark-rehype rehype-stringify",
     "bun add lucide-react clsx tailwind-merge framer-motion",
     "bun add mermaid",
-    "bun add -D remark-math rehype-katex",
-    "bun add @uiw/codemirror-themes lucide-react"
+    "bun add -D @types/dompurify",
+    "bun add @uiw/codemirror-themes lucide-react",
+    "bun add @monaco-editor/react monaco-editor rehype-raw dompurify isomorphic-dompurify"
 ];
     
     if (commands.length === 0) {
