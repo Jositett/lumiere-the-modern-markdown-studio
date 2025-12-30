@@ -16,6 +16,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     if (userId && !user) {
       setAuth(session.user as any);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, user, setAuth]);
 
   if (isPending) {
