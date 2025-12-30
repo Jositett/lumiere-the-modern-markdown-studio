@@ -1,24 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useEditorStore } from '@/lib/store';
+
+type MediaQueryListEvent = { matches: boolean };
 
 export function useTheme() {
-  const [isDark, setIsDark] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme ? savedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+  const isDark = useEditorStore((s) => s.isDark);
+  const setIsDark = useEditorStore((s) => s.setIsDark);
 
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+    const saved = localStorage.getItem('theme');
+    if (saved && saved !== (isDark ? 'dark' : 'light')) {
+      setIsDark(saved === 'dark');
     }
-  }, [isDark]);
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark, setIsDark]);
 
   const toggleTheme = () => {
-    setIsDark(!isDark);
+    const newDark = !useEditorStore.getState().isDark;
+    setIsDark(newDark);
+    localStorage.setItem('theme', newDark ? 'dark' : 'light');
   };
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const handle = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    mql.addEventListener('change', handle);
+    return () => mql.removeEventListener('change', handle);
+  }, [setIsDark]);
 
   return { isDark, toggleTheme };
 }

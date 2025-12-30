@@ -17,6 +17,7 @@ interface EditorState {
   refreshToken: string | null;
   subscriptionStatus: SubscriptionStatus;
   isBanned: boolean;
+  isDark: boolean;
   editorSettings: EditorSettings;
   tourComplete: boolean;
   adminStats: AdminStats | null;
@@ -44,6 +45,7 @@ interface EditorState {
   deleteGuestDocument: (id: string) => void;
   loadDocuments: () => Promise<void>;
   migrateGuestDocuments: () => Promise<void>;
+  setIsDark: (value: boolean) => void;
 }
 const savedToken = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
 const savedRefresh = typeof window !== 'undefined' ? localStorage.getItem('lumiere_refresh') : null;
@@ -67,6 +69,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   tourComplete: savedTour,
   adminStats: null,
   isGuest: !savedToken,
+  isDark: (() => {
+    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
+    return savedTheme ? savedTheme === 'dark' : (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : false);
+  })(),
   guestDocuments: [],
   editorSettings: (() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
@@ -149,12 +155,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { guestDocuments: next };
     });
   },
-  deleteGuestDocument: (id) => {
+  deleteGuestDocument: (id: string) => {
     set((state) => {
       const next = state.guestDocuments.filter(d => d.id !== id);
       localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
       return { guestDocuments: next };
     });
+  },
+  setIsDark: (nextDark: boolean) => {
+    localStorage.setItem('theme', nextDark ? 'dark' : 'light');
+    set({ isDark: nextDark });
   },
   loadDocuments: async () => {
     const { isGuest, token } = get();
