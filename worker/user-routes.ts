@@ -17,30 +17,28 @@ const rateLimit = async (c: any, next: any) => {
   const ip = c.req.header('CF-Connecting-IP') || 'anon';
   const key = `rl:${ip}`;
   const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName(key));
-  const doc = await stub.getDoc(key) as {data?: {count: number, reset: number}, v?: number} | null;
+  const doc = await (stub as any).getDoc(key);
   const now = Date.now();
   const data = doc?.data;
   const state = (data && (now - data.reset) < 60000) ? data : { count: 0, reset: now };
   if (state.count > 100) return c.json({ success: false, error: 'Rate limit exceeded' }, 429);
-  await stub.casPut(key, doc?.v ?? 0, { count: state.count + 1, reset: state.reset });
+  await (stub as any).casPut(key, doc?.v ?? 0, { count: state.count + 1, reset: state.reset });
   await next();
 };
 const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
   const id = crypto.randomUUID();
   const entry: SystemLog = { ...log, id, timestamp: Date.now() };
   const stub = env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName('sys-logs'));
-  const current = await stub.getDoc("logs") as {data: SystemLog[], v?: number} | null;
-  const logsArr = [entry, ...(current?.data || [])].slice(0,100);
-  await stub.casPut("logs", current?.v ?? 0, logsArr);
+  const current = await (stub as any).getDoc("logs");
+  const logsArr = [entry, ...(current?.data || [])].slice(0, 100);
+  await (stub as any).casPut("logs", current?.v ?? 0, logsArr);
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.use('/api/*', rateLimit);
-  // BETTER-AUTH MOUNT
   app.on(["POST", "GET"], "/api/auth/**", async (c) => {
     const auth = getAuth(c.env);
     return auth.handler(c.req.raw);
   });
-  // ADMIN
   app.get('/api/admin/stats', async (c) => {
     const admin = await verifyAuth(c);
     if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
@@ -77,6 +75,21 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const usersResponse = await UserEntity.list(c.env) as {items: User[]};
     return ok(c, usersResponse);
   });
+  app.get('/api/admin/logs', async (c) => {
+    const admin = await verifyAuth(c);
+    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
+    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('sys-logs'));
+    const doc = await (stub as any).getDoc("logs");
+    return ok(c, doc?.data || []);
+  });
+  app.get('/api/admin/client-errors', async (c) => {
+    const admin = await verifyAuth(c);
+    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
+    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('client-errors'));
+    const { items } = await (stub as any).listPrefix('err:');
+    const errors = await Promise.all(items.map(async (k: string) => (await (stub as any).getDoc(k))?.data));
+    return ok(c, errors.filter(Boolean));
+  });
   app.post('/api/admin/users/:id/ban', async (c) => {
     const admin = await verifyAuth(c);
     if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
@@ -88,7 +101,6 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await logEvent(c.env, { level: 'security', event: `User ${nextBanned ? 'banned' : 'unbanned'}`, userId: targetId });
     return ok(c, { isBanned: nextBanned });
   });
-  // DOCUMENTS
   app.get('/api/documents', async (c) => {
     const user = await verifyAuth(c);
     if (!user) return bad(c, 'Unauthorized');

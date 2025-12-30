@@ -11,6 +11,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       useEditorStore.getState().logout();
       return null;
     }
+    if (res.status === 403) {
+      // Forbidden usually means not authorized for a specific resource (e.g. Admin page)
+      // but the session is still valid.
+      throw new Error('Forbidden: Access denied');
+    }
     return res;
   };
   const finalRes = await performFetch();

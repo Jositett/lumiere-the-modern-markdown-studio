@@ -6,12 +6,12 @@ import { Sparkles, Zap, Shield, Globe, ArrowRight, Check, Code, MessageSquare } 
 import { motion } from 'framer-motion';
 import { Testimonials } from '@/components/landing/Testimonials';
 import { toast } from 'sonner';
+import { useEditorStore } from '@/lib/store';
 export function HomePage() {
   const navigate = useNavigate();
-  const token = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
+  const user = useEditorStore(s => s.user);
   const [email, setEmail] = useState('');
   const handleStartWriting = () => {
-    // If not logged in, they enter as guest. If logged in, they go to app.
     navigate('/app');
   };
   return (
@@ -31,7 +31,7 @@ export function HomePage() {
           </nav>
           <div className="flex items-center gap-4">
             <ThemeToggle className="static" />
-            {!token ? (
+            {!user ? (
               <>
                 <Button variant="ghost" asChild className="hidden sm:inline-flex">
                   <Link to="/auth">Login</Link>
@@ -48,7 +48,6 @@ export function HomePage() {
           </div>
         </div>
       </header>
-      {/* Hero Section */}
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none">
           <div className="absolute top-24 left-0 w-72 h-72 bg-brand-500/10 rounded-full blur-3xl animate-pulse" />
@@ -126,7 +125,6 @@ export function HomePage() {
           </div>
         </div>
       </section>
-      {/* Features Grid */}
       <section id="features" className="py-24 bg-muted/30 border-y">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 space-y-4">
@@ -154,7 +152,6 @@ export function HomePage() {
         </div>
       </section>
       <Testimonials />
-      {/* Pricing Teaser */}
       <section className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto p-12 bg-brand-600 rounded-[3rem] text-white text-center relative overflow-hidden">
