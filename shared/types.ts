@@ -33,6 +33,17 @@ export interface User {
   subscriptionStatus?: SubscriptionStatus;
   planExpiresAt?: number;
   refreshVersion?: number;
+  // Better-Auth & MFA Extensions
+  twoFactorEnabled?: boolean;
+  twoFactorSecret?: string;
+  backupCodes?: string[];
+  emailVerified?: boolean;
+  image?: string;
+}
+export interface MfaChallenge {
+  error: 'two-factor-required';
+  twoFactorToken: string;
+  userId: string;
 }
 export interface SystemLog {
   id: string;
@@ -65,8 +76,11 @@ export interface EditorSettings {
 }
 export interface AuthResponse {
   user: User;
-  token: string;
-  refreshToken: string;
+  session: {
+    id: string;
+    userId: string;
+    expiresAt: number;
+  };
 }
 export interface Chat {
   id: string;

@@ -3,46 +3,23 @@ import type { Env } from './core-utils';
 import { DocumentEntity, UserEntity } from "./entities";
 import { ok, bad, notFound } from './core-utils';
 import type { Document, User, AdminStats, SystemLog, ClientError } from "@shared/types";
-import { SignJWT, jwtVerify } from 'jose';
-const JWT_SECRET = new TextEncoder().encode('lumiere-super-secret-key-replace-in-prod');
-const ACCESS_TOKEN_EXP = '15m';
-interface RateLimitState {
-  count: number;
-  reset: number;
-}
-// Middlewares & Helpers
-const createTokens = async (user: User) => {
-  const accessToken = await new SignJWT({ sub: user.id, role: user.role, rv: user.refreshVersion || 0 })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(ACCESS_TOKEN_EXP)
-    .sign(JWT_SECRET);
-  const refreshToken = user.id; // Simplified for demo; usually a UUID mapped to session in DO
-  return { accessToken, refreshToken };
-};
+import { getAuth } from "./auth";
 const verifyAuth = async (c: any) => {
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.split(' ')[1];
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    const userId = payload.sub as string;
-    const userInst = new UserEntity(c.env, userId);
-    if (!await userInst.exists()) return null;
-    const user = await userInst.getState();
-    if (user.isBanned) return null;
-    return user;
-  } catch (e) {
-    return null;
-  }
+  const auth = getAuth(c.env);
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session || !session.user) return null;
+  const userInst = new UserEntity(c.env, session.user.id);
+  const user = await userInst.getState();
+  if (user.isBanned) return null;
+  return user;
 };
 const rateLimit = async (c: any, next: any) => {
   const ip = c.req.header('CF-Connecting-IP') || 'anon';
   const key = `rl:${ip}`;
   const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName(key));
-  const doc = await stub.getDoc(key) as {data?: RateLimitState, v?: number} | null;
+  const doc = await stub.getDoc(key) as {data?: {count: number, reset: number}, v?: number} | null;
   const now = Date.now();
-  const data = doc?.data as RateLimitState | undefined;
+  const data = doc?.data;
   const state = (data && (now - data.reset) < 60000) ? data : { count: 0, reset: now };
   if (state.count > 100) return c.json({ success: false, error: 'Rate limit exceeded' }, 429);
   await stub.casPut(key, doc?.v ?? 0, { count: state.count + 1, reset: state.reset });
@@ -58,57 +35,17 @@ const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.use('/api/*', rateLimit);
-  // AUTH
-  app.post('/api/auth/register', async (c) => {
-    const { name, email, password } = await c.req.json();
-    if (!email || !password) return bad(c, 'Email and password required');
-    const existing = await UserEntity.findByEmail(c.env, email);
-    if (existing) return bad(c, 'Email already in use');
-    const userId = crypto.randomUUID();
-    const salt = crypto.randomUUID();
-    const passwordHash = await UserEntity.hashPassword(password, salt);
-    const isFirstUser = email.toLowerCase() === 'admin@lumiere.studio' || (await new UserEntity(c.env, 'sys-count').exists() === false);
-    const user = await UserEntity.create(c.env, {
-      id: userId,
-      name: name || email.split('@')[0],
-      email,
-      passwordHash,
-      salt,
-      role: isFirstUser ? 'admin' : 'user',
-      createdAt: Date.now(),
-      subscriptionStatus: 'free',
-      isBanned: false,
-      refreshVersion: 0
-    });
-    const { accessToken, refreshToken } = await createTokens(user);
-    await logEvent(c.env, { level: 'info', event: 'User registered', userId: user.id });
-    return ok(c, { user, token: accessToken, refreshToken });
-  });
-  app.post('/api/auth/login', async (c) => {
-    const { email, password } = await c.req.json();
-    const user = await UserEntity.findByEmail(c.env, email);
-    if (!user || user.isBanned) return bad(c, 'Invalid credentials');
-    const computedHash = await UserEntity.hashPassword(password, user.salt!);
-    if (computedHash !== user.passwordHash) return bad(c, 'Invalid credentials');
-    const { accessToken, refreshToken } = await createTokens(user);
-    await logEvent(c.env, { level: 'info', event: 'User login', userId: user.id });
-    return ok(c, { user, token: accessToken, refreshToken });
-  });
-  app.post('/api/auth/refresh', async (c) => {
-    const { refreshToken: rToken } = await c.req.json();
-    if (!rToken) return bad(c, 'Token required');
-    const userInst = new UserEntity(c.env, rToken);
-    if (!await userInst.exists()) return bad(c, 'Invalid session');
-    const user = await userInst.getState();
-    const { accessToken, refreshToken } = await createTokens(user);
-    return ok(c, { user, token: accessToken, refreshToken });
+  // BETTER-AUTH MOUNT
+  app.on(["POST", "GET"], "/api/auth/**", async (c) => {
+    const auth = getAuth(c.env);
+    return auth.handler(c.req.raw);
   });
   // ADMIN
   app.get('/api/admin/stats', async (c) => {
     const admin = await verifyAuth(c);
     if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const usersResponse = await UserEntity.list(c.env, null, 1000) as {items: User[], next?: string};
-    const docsResponse = await DocumentEntity.list(c.env, null, 1000) as {items: Document[], next?: string};
+    const usersResponse = await UserEntity.list(c.env, null, 1000) as {items: User[]};
+    const docsResponse = await DocumentEntity.list(c.env, null, 1000) as {items: Document[]};
     const users = usersResponse.items;
     const docs = docsResponse.items;
     const now = new Date();
@@ -151,104 +88,6 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await logEvent(c.env, { level: 'security', event: `User ${nextBanned ? 'banned' : 'unbanned'}`, userId: targetId });
     return ok(c, { isBanned: nextBanned });
   });
-  app.get('/api/admin/logs', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('sys-logs'));
-    const logs = await stub.getDoc("logs") as {data: SystemLog[], v?: number} | null;
-    return ok(c, logs?.data || []);
-  });
-
-  app.post('/api/client-errors', async (c) => {
-    const payload = await c.req.json<any>();
-    const error: ClientError = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      message: payload.message || 'Unknown error',
-      category: payload.category || 'unknown',
-      url: payload.url || '',
-      level: payload.level || 'error',
-      stackTrace: payload.stack || '',
-      parsedStack: payload.parsedStack,
-      componentStack: payload.componentStack,
-      source: payload.source,
-      lineno: payload.lineno,
-      colno: payload.colno
-    };
-    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('client-logs'));
-    const current = await stub.getDoc('errors') as {data: ClientError[], v?: number} | null;
-    const errors = [error, ...(current?.data || [])].slice(0, 1000);
-    await stub.casPut('errors', current?.v ?? 0, errors);
-    return ok(c, {success: true});
-  });
-
-  app.get('/api/admin/client-errors', async (c) => {
-    const admin = await verifyAuth(c);
-    if (!admin?.role || admin.role !== 'admin') return bad(c, 'Unauthorized');
-    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('client-logs'));
-    const res = await stub.getDoc('errors') as {data: ClientError[], v?: number} | null || {data: []};
-    return ok(c, res.data);
-  });
-
-  // ADMIN DOCUMENTS
-  app.get('/api/admin/documents', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const docsResponse = await DocumentEntity.list(c.env, null, 1000) as {items: Document[]};
-    return ok(c, docsResponse);
-  });
-
-  app.get('/api/admin/shares', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const allDocsResponse = await DocumentEntity.list(c.env, null, 1000) as any;
-    return ok(c, {items: allDocsResponse.items.filter((d:Document)=>d.isPublic)});
-  });
-
-  app.post('/api/admin/documents/:id/revoke', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    const entity = new DocumentEntity(c.env, id);
-    const doc = await entity.getState();
-    if (doc.isPublic) await entity.mutate(s => ({...s, isPublic: false}));
-    return ok(c, {success: true});
-  });
-
-  app.post('/api/admin/documents/:id/delete', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    await DocumentEntity.delete(c.env, id);
-    return ok(c, {success: true});
-  });
-
-  app.post('/api/admin/users/:id/delete', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    await UserEntity.delete(c.env, id);
-    return ok(c, {success: true});
-  });
-
-  app.post('/api/admin/users/:id/email', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    const {email} = await c.req.json();
-    if (!email) return bad(c, 'email required');
-    await new UserEntity(c.env, id).patch({email});
-    return ok(c, {success: true});
-  });
-
-  app.get('/api/admin/billing', async (c) => {
-    const admin = await verifyAuth(c);
-    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
-    const uList = await UserEntity.list(c.env, null, 1000) as any;
-    const proCount = uList.items.filter((u:User)=>u.subscriptionStatus==='pro').length;
-    const mockUsers = uList.items.map((u:User)=>({ ...u, mockNextBill: new Date(Date.now() + 30*86400000).toISOString().slice(0,10), mockMonthlyRevenue: u.subscriptionStatus==='pro' ? 10 : 0 }));
-    return ok(c, {users: mockUsers, totalRevenue: proCount * 10, proUsers: proCount});
-  });
   // DOCUMENTS
   app.get('/api/documents', async (c) => {
     const user = await verifyAuth(c);
@@ -287,22 +126,10 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const entity = new DocumentEntity(c.env, id);
     const old = await entity.getState();
     if (old.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
-    const newVersion = old.version + 1;
-    const newVersions = [...(old.versions || []), {version: newVersion, content: updates.content || old.content, updatedAt: Date.now() }].slice(-100);
-    const updated = {...old, ...updates, updatedAt: Date.now(), version: newVersion, versions: newVersions};
+    const updated = {...old, ...updates, updatedAt: Date.now(), version: old.version + 1};
     await entity.save(updated);
     return ok(c, updated);
   });
-  app.get('/api/documents/:id/versions', async (c) => {
-    const user = await verifyAuth(c);
-    if (!user) return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    const entity = new DocumentEntity(c.env, id);
-    const doc = await entity.getState();
-    if (doc.userId !== user.id) return bad(c, 'Forbidden');
-    return ok(c, {items: doc.versions || []});
-  });
-
   app.delete('/api/documents/:id', async (c) => {
     const user = await verifyAuth(c);
     if (!user) return bad(c, 'Unauthorized');

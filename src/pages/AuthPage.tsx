@@ -4,12 +4,15 @@ import { Card, CardFooter, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { ArrowRight, Github, Mail } from 'lucide-react';
+import { ArrowRight, Github, Mail, ShieldCheck, KeyRound } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
-import { api } from '@/lib/api-client';
+import { authClient, twoFactor } from '@/lib/auth-client';
 import { toast } from 'sonner';
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [mfaChallenge, setMfaChallenge] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [useBackupCode, setUseBackupCode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -18,25 +21,51 @@ export default function AuthPage() {
   const guestDocuments = useEditorStore(s => s.guestDocuments);
   const migrateGuestDocuments = useEditorStore(s => s.migrateGuestDocuments);
   const navigate = useNavigate();
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { data, error } = useBackupCode 
+        ? await twoFactor.verifyBackupCode({ code: mfaCode })
+        : await twoFactor.verifyTotp({ code: mfaCode });
+      if (error) throw error;
+      const session = await authClient.getSession();
+      if (session.data?.user) {
+        await setAuth(session.data.user as any);
+        toast.success("Security verified. Welcome back!");
+        navigate('/app');
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Invalid security code");
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const payload = isLogin ? { email, password } : { email, password, name };
-      const data = await api<any>(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      setAuth(data.user, data.token);
+      if (isLogin) {
+        const { data, error } = await authClient.signIn.email({ email, password });
+        if (error) {
+          if (error.status === 403 && error.code === "TWO_FACTOR_REQUIRED") {
+            setMfaChallenge(true);
+            return;
+          }
+          throw error;
+        }
+        if (data?.user) await setAuth(data.user as any);
+      } else {
+        const { data, error } = await authClient.signUp.email({ email, password, name });
+        if (error) throw error;
+        if (data?.user) await setAuth(data.user as any);
+      }
       if (guestDocuments.length > 0) {
         toast.promise(migrateGuestDocuments(), {
           loading: 'Migrating your local drafts to the cloud...',
           success: 'Your drafts are now safely in the cloud!',
           error: 'Cloud migration failed, but your account is ready.'
         });
-      } else {
-        toast.success(isLogin ? "Welcome back!" : "Account created successfully");
       }
       navigate('/app');
     } catch (err: any) {
@@ -45,6 +74,51 @@ export default function AuthPage() {
       setLoading(false);
     }
   };
+  if (mfaChallenge) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-center space-y-2">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-brand-100 flex items-center justify-center text-brand-600 mb-4">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <h2 className="text-3xl font-display font-bold">Two-Factor Auth</h2>
+            <p className="text-muted-foreground">
+              {useBackupCode ? "Enter a backup code to gain access" : "Open your authenticator app and enter the code"}
+            </p>
+          </div>
+          <Card className="border-none shadow-xl">
+            <CardHeader>
+              <form onSubmit={handleMfaSubmit} className="space-y-6">
+                <div className="space-y-2 text-center">
+                  <Label htmlFor="mfa-code" className="sr-only">Code</Label>
+                  <Input 
+                    id="mfa-code" 
+                    placeholder={useBackupCode ? "ABCDE-12345" : "000000"} 
+                    className="text-center text-2xl tracking-[0.5em] h-14"
+                    value={mfaCode}
+                    onChange={e => setMfaCode(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button className="w-full bg-brand-600 h-12 text-lg rounded-xl" disabled={loading}>
+                  {loading ? 'Verifying...' : 'Verify Identity'}
+                </Button>
+                <button 
+                  type="button" 
+                  onClick={() => setUseBackupCode(!useBackupCode)}
+                  className="w-full text-xs text-brand-600 hover:underline flex items-center justify-center gap-1.5"
+                >
+                  <KeyRound className="w-3 h-3" />
+                  {useBackupCode ? "Use Authenticator App" : "Use a Backup Code"}
+                </button>
+              </form>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-brand-600 text-white relative overflow-hidden">

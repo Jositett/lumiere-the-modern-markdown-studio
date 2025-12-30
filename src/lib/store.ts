@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Document, User, EditorSettings, VersionSnapshot, AdminStats, SubscriptionStatus } from '@shared/types';
 import { api } from '@/lib/api-client';
+import { authClient } from '@/lib/auth-client';
 interface EditorState {
   content: string;
   title: string;
@@ -13,8 +14,6 @@ interface EditorState {
   scrollPercentage: number;
   versions: VersionSnapshot[] | null;
   user: User | null;
-  token: string | null;
-  refreshToken: string | null;
   subscriptionStatus: SubscriptionStatus;
   isBanned: boolean;
   isDark: boolean;
@@ -23,6 +22,7 @@ interface EditorState {
   adminStats: AdminStats | null;
   isGuest: boolean;
   guestDocuments: Document[];
+  mfaRequired: boolean;
   loadVersionsForDoc: (docId: string) => Promise<void>;
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -34,7 +34,7 @@ interface EditorState {
   setFocusMode: (enabled: boolean) => void;
   setScrollPercentage: (percentage: number) => void;
   updateDocumentLocally: (id: string, updates: Partial<Document>) => void;
-  setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => Promise<void>;
+  setAuth: (user: User | null) => Promise<void>;
   logout: () => void;
   updateSettings: (updates: Partial<EditorSettings>) => void;
   setTourComplete: (complete: boolean) => void;
@@ -46,11 +46,8 @@ interface EditorState {
   loadDocuments: () => Promise<void>;
   migrateGuestDocuments: () => Promise<void>;
   setIsDark: (value: boolean) => void;
+  setMfaRequired: (value: boolean) => void;
 }
-const savedToken = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
-const savedRefresh = typeof window !== 'undefined' ? localStorage.getItem('lumiere_refresh') : null;
-const savedUser = typeof window !== 'undefined' ? localStorage.getItem('lumiere_user') : null;
-const savedTour = typeof window !== 'undefined' ? localStorage.getItem('lumiere_tour_complete') === 'true' : false;
 export const useEditorStore = create<EditorState>((set, get) => ({
   content: '',
   title: 'Untitled Document',
@@ -61,25 +58,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isSaving: false,
   isFocusMode: false,
   scrollPercentage: 0,
-  user: savedUser ? JSON.parse(savedUser) : null,
-  token: savedToken || null,
-  refreshToken: savedRefresh || null,
+  user: null,
   subscriptionStatus: 'free',
   isBanned: false,
-  tourComplete: savedTour,
+  tourComplete: localStorage.getItem('lumiere_tour_complete') === 'true',
   adminStats: null,
-  isGuest: !savedToken,
+  isGuest: true,
+  mfaRequired: false,
   isDark: (() => {
-    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
-    return savedTheme ? savedTheme === 'dark' : (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : false);
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme ? savedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   })(),
   guestDocuments: [],
   editorSettings: (() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
+    const saved = localStorage.getItem('lumiere_settings');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        return { theme: 'vs-dark', fontSize: 16, compactMode: false, ...parsed };
+        return { theme: 'vs-dark', fontSize: 16, compactMode: false, ...JSON.parse(saved) };
       } catch (e) {
         return { theme: 'vs-dark', fontSize: 16, compactMode: false };
       }
@@ -90,10 +85,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTitle: (title) => set({ title }),
   setActiveDocumentId: (id) => {
     const state = get();
-    const isGuest = state.isGuest;
-    const guestDocs = state.guestDocuments;
-    const cloudDocs = state.documents;
-    const doc = (isGuest ? guestDocs : cloudDocs).find(d => d.id === id);
+    const doc = (state.isGuest ? state.guestDocuments : state.documents).find(d => d.id === id);
     if (doc) set({ activeDocumentId: id, content: doc.content, title: doc.title });
     else set({ activeDocumentId: id });
   },
@@ -114,12 +106,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateDocumentLocally: (id, updates) => set((state) => ({
     documents: state.documents.map(doc => doc.id === id ? { ...doc, ...updates } : doc)
   })),
-  setAuth: async (user, token, refreshToken) => {
-    if (token) {
-      localStorage.setItem('lumiere_token', token);
-      if (refreshToken) localStorage.setItem('lumiere_refresh', refreshToken);
-      localStorage.setItem('lumiere_user', JSON.stringify(user));
-      set({ user, token, refreshToken: refreshToken || get().refreshToken, isGuest: false, isBanned: user?.isBanned || false, subscriptionStatus: user?.subscriptionStatus || 'free' });
+  setAuth: async (user) => {
+    if (user) {
+      set({ user, isGuest: false, isBanned: user.isBanned || false, subscriptionStatus: user.subscriptionStatus || 'free', mfaRequired: false });
       const state = get();
       if (state.guestDocuments.length > 0) await get().migrateGuestDocuments();
       else await get().loadDocuments();
@@ -127,11 +116,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       get().logout();
     }
   },
-  logout: () => {
-    localStorage.removeItem('lumiere_token');
-    localStorage.removeItem('lumiere_refresh');
-    localStorage.removeItem('lumiere_user');
-    set({ user: null, token: null, refreshToken: null, documents: [], activeDocumentId: null, content: '', title: '', isGuest: true, isBanned: false, subscriptionStatus: 'free' });
+  logout: async () => {
+    await authClient.signOut();
+    set({ user: null, documents: [], activeDocumentId: null, content: '', title: '', isGuest: true, isBanned: false, subscriptionStatus: 'free', mfaRequired: false });
     get().initializeGuestMode();
   },
   updateSettings: (updates) => {
@@ -173,10 +160,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     localStorage.setItem('theme', nextDark ? 'dark' : 'light');
     set({ isDark: nextDark });
   },
+  setMfaRequired: (mfaRequired) => set({ mfaRequired }),
   loadDocuments: async () => {
-    const isGuest = get().isGuest;
-    const token = get().token;
-    if (isGuest || !token) return;
+    if (get().isGuest) return;
     try {
       const resp = await api<{ items: Document[] }>('/api/documents');
       set({ documents: resp.items || [] });
@@ -186,9 +172,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   migrateGuestDocuments: async () => {
     const isGuest = get().isGuest;
-    const token = get().token;
     const guestDocuments = get().guestDocuments;
-    if (isGuest || !token || guestDocuments.length === 0) return;
+    if (isGuest || guestDocuments.length === 0) return;
     try {
       await Promise.all(guestDocuments.map(doc => api('/api/documents', {
         method: 'POST',
