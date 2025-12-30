@@ -17,40 +17,55 @@ export const getAuth = (env: Env) => betterAuth({
         return data as any;
       },
       async findOne({ model, where }: { model: string; where: any[] }) {
-        const field = where[0].field;
-        const value = where[0].value;
-        if (field === "id") {
-          const key = `${model}:${value}`;
+        if (!where || where.length === 0) return null;
+        // Handle field lookups. Better-Auth usually queries by one primary identifier.
+        const idQuery = where.find(w => w.field === "id");
+        if (idQuery) {
+          const key = `${model}:${idQuery.value}`;
           const stub = env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName(key));
           const doc = await (stub as any).getDoc(key);
           return (doc?.data as any) || null;
         }
-        if (model === "user" && field === "email") {
-          const user = await UserEntity.findByEmail(env, value as string);
-          return user as any;
+        if (model === "user") {
+          const emailQuery = where.find(w => w.field === "email");
+          if (emailQuery) {
+            try {
+              const user = await UserEntity.findByEmail(env, emailQuery.value as string);
+              return user as any;
+            } catch (err) {
+              console.error(`[AUTH ADAPTER] findByEmail failed: ${err}`);
+              return null;
+            }
+          }
         }
         return null;
       },
       async findMany({ model, where }: { model: string; where: any[] }) {
+        // findMany is less common for simple auth, but we provide a safe fallback
         return [];
       },
       async update({ model, where, update }: { model: string; where: any[]; update: any }) {
-        const field = where[0].field;
-        const value = where[0].value;
-        if (field !== "id") return null;
-        const key = `${model}:${value}`;
+        const idQuery = where.find(w => w.field === "id");
+        if (!idQuery) {
+          console.warn(`[AUTH ADAPTER] update called without ID on model ${model}`);
+          return null;
+        }
+        const key = `${model}:${idQuery.value}`;
         const stub = env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName(key));
-        const current = await (stub as any).getDoc(key);
-        if (!current) return null;
-        const next = { ...current.data, ...update };
-        await (stub as any).casPut(key, current.v, next);
-        return next as any;
+        // Small bounded retry for CAS
+        for (let i = 0; i < 3; i++) {
+          const current = await (stub as any).getDoc(key);
+          if (!current) return null;
+          const next = { ...current.data, ...update };
+          const res = await (stub as any).casPut(key, current.v, next);
+          if (res.ok) return next as any;
+        }
+        throw new Error("Contention in auth database update");
       },
       async delete({ model, where }: { model: string; where: any[] }) {
-        const field = where[0].field;
-        const value = where[0].value;
-        if (field !== "id") return;
-        const key = `${model}:${value}`;
+        const idQuery = where.find(w => w.field === "id");
+        if (!idQuery) return;
+        const key = `${model}:${idQuery.value}`;
         const stub = env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName(key));
         await (stub as any).del(key);
       }

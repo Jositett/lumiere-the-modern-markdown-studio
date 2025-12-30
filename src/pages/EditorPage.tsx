@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SplitPanel } from '@/components/ui/split-panel';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -35,6 +35,7 @@ export default function EditorPage() {
   const editorSettings = useEditorStore((s) => s.editorSettings);
   const updateSettings = useEditorStore((s) => s.updateSettings);
   const documents = useEditorStore((s) => s.documents);
+  const guestDocuments = useEditorStore((s) => s.guestDocuments);
   const updateDocumentLocally = useEditorStore((s) => s.updateDocumentLocally);
   const isFocusMode = useEditorStore((s) => s.isFocusMode);
   const setFocusMode = useEditorStore((s) => s.setFocusMode);
@@ -47,6 +48,12 @@ export default function EditorPage() {
   const [showTour, setShowTour] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const editorContainerRef = React.useRef<HTMLDivElement>(null);
+  // Correctly resolve the current document regardless of guest/auth status
+  const currentDoc = useMemo(() => {
+    const pool = isGuest ? guestDocuments : documents;
+    return pool.find(d => d.id === activeDocumentId);
+  }, [isGuest, guestDocuments, documents, activeDocumentId]);
+  const isPublic = currentDoc?.isPublic ?? false;
   React.useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -90,10 +97,11 @@ export default function EditorPage() {
       return () => clearTimeout(timer);
     }
   }, [tourComplete]);
-  const currentDoc = documents.find(d => d.id === activeDocumentId);
-  const isPublic = currentDoc?.isPublic ?? false;
   const togglePublic = async () => {
-    if (!activeDocumentId || isGuest) return;
+    if (!activeDocumentId || isGuest) {
+      if (isGuest) toast.error("Sharing requires a Lumiere account");
+      return;
+    }
     try {
       await api(`/api/documents/${activeDocumentId}`, {
         method: 'PUT',
@@ -196,13 +204,16 @@ export default function EditorPage() {
         </Popover>
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" disabled={!activeDocumentId || isGuest}>
+            <Button variant="ghost" size="icon" disabled={!activeDocumentId}>
               <Share2 className="w-4 h-4" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-4 space-y-4" align="end">
             {isGuest ? (
-              <div className="p-3 text-xs text-center">Cloud sharing is a Pro feature.</div>
+              <div className="p-4 text-center space-y-3">
+                <p className="text-xs font-medium">Cloud sharing is a Pro feature.</p>
+                <Button size="sm" asChild className="w-full bg-brand-600 h-8 rounded-lg text-[10px]"><Link to="/auth">Create Account</Link></Button>
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
@@ -238,25 +249,27 @@ export default function EditorPage() {
   );
   const renderEditorContent = () => {
     if (!activeDocumentId) return <MarkdownEditor />;
+    if (isFocusMode) {
+      return (
+        <div className="h-full w-full bg-background flex justify-center overflow-hidden">
+          <div className="h-full w-full max-w-4xl border-x bg-background shadow-2xl relative z-10">
+            <MarkdownEditor />
+          </div>
+        </div>
+      );
+    }
     if (isMobile) {
       return (
         <div className="h-full flex flex-col">
           <div className="flex-1 overflow-hidden">{mobileTab === 'write' ? <MarkdownEditor /> : preview}</div>
           <div className="h-12 border-t bg-background px-4 flex items-center">
             <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as any)} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 h-14 bg-border/20 rounded-none border-t border-t-border/50">
-                <TabsTrigger value="write" className="data-[state=active]:bg-background h-full">Write</TabsTrigger>
-                <TabsTrigger value="preview" className="data-[state=active]:bg-background h-full">Preview</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 h-10 bg-muted/20 rounded-lg">
+                <TabsTrigger value="write" className="h-full">Write</TabsTrigger>
+                <TabsTrigger value="preview" className="h-full">Preview</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
-        </div>
-      );
-    }
-    if (isFocusMode) {
-      return (
-        <div className="h-full w-full max-w-4xl mx-auto border-x bg-background shadow-2xl z-10">
-          <MarkdownEditor />
         </div>
       );
     }
@@ -268,56 +281,40 @@ export default function EditorPage() {
   return (
     <SidebarProvider defaultOpen={!isMobile}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
-        {isGuest && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-brand-600 z-50 animate-pulse" />
+        {isGuest && activeDocumentId && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-brand-500/30 z-50 pointer-events-none" />
         )}
-        {!isFocusMode ? (
-          <>
-            <AppSidebar />
-            <SidebarInset>
-              <main className="flex-1 flex flex-col min-w-0">
-                {renderHeader()}
-                <div className="flex-1 relative overflow-hidden flex flex-col">
-                  <div ref={editorContainerRef} className="flex-1 relative overflow-hidden">
-                    {renderEditorContent()}
-                  </div>
-                  <StatusBar />
-                  <AnimatePresence>
-                    {showTour && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        className="absolute bottom-12 left-8 z-50 max-w-xs p-6 bg-brand-600 text-white rounded-3xl shadow-2xl"
-                      >
-                        <h3 className="text-lg font-bold mb-2">Welcome to your Studio!</h3>
-                        <p className="text-sm text-brand-100 mb-6">Need a hand? Explore the documentation or use the help menu for quick shortcuts.</p>
-                        <div className="flex gap-2">
-                          <Button variant="secondary" size="sm" className="flex-1" onClick={() => setTourComplete(true)}>Got it</Button>
-                          <Button variant="ghost" size="sm" asChild className="text-white hover:bg-white/10">
-                            <Link to="/docs" onClick={() => setTourComplete(true)}>Open Docs</Link>
-                          </Button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </main>
-            </SidebarInset>
-          </>
-        ) : (
+        {!isFocusMode && <AppSidebar />}
+        <SidebarInset>
           <main className="flex-1 flex flex-col min-w-0">
             {renderHeader()}
             <div className="flex-1 relative overflow-hidden flex flex-col">
               <div ref={editorContainerRef} className="flex-1 relative overflow-hidden">
-                <div className="h-full w-full max-w-4xl mx-auto border-x bg-background shadow-2xl z-10">
-                  <MarkdownEditor />
-                </div>
+                {renderEditorContent()}
               </div>
               <StatusBar />
+              <AnimatePresence>
+                {showTour && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    className="absolute bottom-12 left-8 z-50 max-w-xs p-6 bg-brand-600 text-white rounded-3xl shadow-2xl"
+                  >
+                    <h3 className="text-lg font-bold mb-2 font-display">Welcome to your Studio!</h3>
+                    <p className="text-sm text-brand-100 mb-6">Explore the documentation or use the help menu for quick shortcuts.</p>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="sm" className="flex-1 rounded-xl h-10" onClick={() => setTourComplete(true)}>Got it</Button>
+                      <Button variant="ghost" size="sm" asChild className="text-white hover:bg-white/10 rounded-xl h-10">
+                        <Link to="/docs" onClick={() => setTourComplete(true)}>Open Docs</Link>
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </main>
-        )}
+        </SidebarInset>
       </div>
     </SidebarProvider>
   );
