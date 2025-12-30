@@ -17,6 +17,7 @@ export interface User {
   name: string;
   email: string;
   passwordHash?: string;
+  salt?: string;
 }
 export interface EditorSettings {
   theme: string;

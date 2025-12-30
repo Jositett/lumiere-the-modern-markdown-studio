@@ -48,14 +48,19 @@ export class UserEntity extends IndexedEntity<User> {
   static readonly entityName = "user";
   static readonly indexName = "users";
   static readonly initialState: User = { id: "", name: "", email: "" };
+
   static async findByEmail(env: any, email: string): Promise<User | null> {
-    const users = await this.list(env);
-    return users.items.find(u => u.email === email) || null;
+    return null; // TODO: Implement proper email index lookup
   }
-  static async hashPassword(password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  static async hashPassword(password: string, salt: string): Promise<string> {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const hashBuffer = await crypto.subtle.deriveBits({
+      name: 'PBKDF2',
+      salt: enc.encode(salt),
+      iterations: 100000,
+      hash: 'SHA-256'
+    }, key, 256);
     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 }

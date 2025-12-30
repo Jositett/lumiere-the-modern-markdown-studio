@@ -19,16 +19,18 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const existing = await UserEntity.findByEmail(c.env, email);
     if (existing) return bad(c, 'Email already in use');
     const userId = crypto.randomUUID();
-    const passwordHash = await UserEntity.hashPassword(password);
-    const user = await UserEntity.create(c.env, { id: userId, name: name || email.split('@')[0], email, passwordHash });
+    const salt = crypto.randomUUID();
+    const passwordHash = await UserEntity.hashPassword(password, salt);
+    const user = await UserEntity.create(c.env, { id: userId, name: name || email.split('@')[0], email, passwordHash, salt });
     return ok(c, { user: { id: user.id, name: user.name, email: user.email }, token: user.id });
   });
   app.post('/api/auth/login', async (c) => {
     const { email, password } = await c.req.json();
     const user = await UserEntity.findByEmail(c.env, email);
     if (!user) return bad(c, 'Invalid credentials');
-    const hash = await UserEntity.hashPassword(password);
-    if (user.passwordHash !== hash) return bad(c, 'Invalid credentials');
+    if (!user.passwordHash || !user.salt) return bad(c, 'Invalid credentials');
+    const computedHash = await UserEntity.hashPassword(password, user.salt);
+    if (computedHash !== user.passwordHash) return bad(c, 'Invalid credentials');
     return ok(c, { user: { id: user.id, name: user.name, email: user.email }, token: user.id });
   });
   // DOCUMENTS (SCOPED)
@@ -81,7 +83,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const entity = new DocumentEntity(c.env, id);
     const current = await entity.getState();
     if (current.userId !== user.id) return bad(c, 'Forbidden');
-    const updated = await entity.mutate(s => ({ ...s, ...updates, updatedAt: Date.now() }));
+    const updated = await entity.mutate(s => ({ ...s, ...updates, updatedAt: Date.now(), version: s.version + 1 }));
     return ok(c, updated);
   });
   app.delete('/api/documents/:id', async (c) => {
