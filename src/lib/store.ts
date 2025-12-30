@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Document, User, EditorSettings, VersionSnapshot, AdminStats } from '@shared/types';
+import type { Document, User, EditorSettings, VersionSnapshot, AdminStats, SubscriptionStatus } from '@shared/types';
 import { api } from '@/lib/api-client';
 interface EditorState {
   content: string;
@@ -14,13 +14,14 @@ interface EditorState {
   versions: VersionSnapshot[] | null;
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
+  subscriptionStatus: SubscriptionStatus;
+  isBanned: boolean;
   editorSettings: EditorSettings;
   tourComplete: boolean;
   adminStats: AdminStats | null;
-  // Guest Mode State
   isGuest: boolean;
   guestDocuments: Document[];
-  // Actions
   loadVersionsForDoc: (docId: string) => Promise<void>;
   setContent: (content: string) => void;
   setTitle: (title: string) => void;
@@ -32,20 +33,19 @@ interface EditorState {
   setFocusMode: (enabled: boolean) => void;
   setScrollPercentage: (percentage: number) => void;
   updateDocumentLocally: (id: string, updates: Partial<Document>) => void;
-  setAuth: (user: User | null, token: string | null) => void;
+  setAuth: (user: User | null, token: string | null, refreshToken?: string | null) => void;
   logout: () => void;
   updateSettings: (updates: Partial<EditorSettings>) => void;
   setTourComplete: (complete: boolean) => void;
   setAdminStats: (stats: AdminStats | null) => void;
-  // Guest & Migration Actions
+  initializeGuestMode: () => void;
   addGuestDocument: (doc: Document) => void;
   updateGuestDocument: (id: string, updates: Partial<Document>) => void;
   deleteGuestDocument: (id: string) => void;
-  initializeGuestMode: () => void;
   migrateGuestDocuments: () => Promise<void>;
 }
-const GUEST_LIMIT = 10;
 const savedToken = typeof window !== 'undefined' ? localStorage.getItem('lumiere_token') : null;
+const savedRefresh = typeof window !== 'undefined' ? localStorage.getItem('lumiere_refresh') : null;
 const savedUser = typeof window !== 'undefined' ? localStorage.getItem('lumiere_user') : null;
 const savedTour = typeof window !== 'undefined' ? localStorage.getItem('lumiere_tour_complete') === 'true' : false;
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -60,27 +60,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   scrollPercentage: 0,
   user: savedUser ? JSON.parse(savedUser) : null,
   token: savedToken || null,
+  refreshToken: savedRefresh || null,
+  subscriptionStatus: 'free',
+  isBanned: false,
   tourComplete: savedTour,
   adminStats: null,
   isGuest: !savedToken,
   guestDocuments: [],
   editorSettings: (() => {
-    const savedSettingsStr = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
-    const savedSettings = savedSettingsStr ? JSON.parse(savedSettingsStr) : null;
-    return savedSettings || { theme: 'vscodeDark', fontSize: 16 };
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
+    return saved ? JSON.parse(saved) : { theme: 'vscodeDark', fontSize: 16 };
   })(),
   setContent: (content) => set({ content }),
   setTitle: (title) => set({ title }),
   setActiveDocumentId: (id) => {
     const state = get();
-    const doc = state.isGuest
-      ? state.guestDocuments.find(d => d.id === id)
-      : state.documents.find(d => d.id === id);
-    if (doc) {
-      set({ activeDocumentId: id, content: doc.content, title: doc.title });
-    } else {
-      set({ activeDocumentId: id });
-    }
+    const doc = (state.isGuest ? state.guestDocuments : state.documents).find(d => d.id === id);
+    if (doc) set({ activeDocumentId: id, content: doc.content, title: doc.title });
+    else set({ activeDocumentId: id });
   },
   setDocuments: (documents) => set({ documents }),
   setPreviewMode: (enabled) => set({ isPreviewMode: enabled }),
@@ -90,43 +87,35 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setScrollPercentage: (scrollPercentage) => set({ scrollPercentage }),
   versions: null,
   loadVersionsForDoc: async (docId: string) => {
-    if (get().isGuest) {
-      set({ versions: [] });
-      return;
-    }
+    if (get().isGuest) return;
     try {
-      const resp = await api<{ items: VersionSnapshot[] }>('/api/documents/' + docId + '/versions');
+      const resp = await api<{ items: VersionSnapshot[] }>(`/api/documents/${docId}/versions`);
       set({ versions: resp.items || [] });
-    } catch {
-      set({ versions: null });
-    }
+    } catch { set({ versions: null }); }
   },
   updateDocumentLocally: (id, updates) => set((state) => ({
     documents: state.documents.map(doc => doc.id === id ? { ...doc, ...updates } : doc)
   })),
-  setAuth: (user, token) => {
+  setAuth: (user, token, refreshToken) => {
     if (token) {
       localStorage.setItem('lumiere_token', token);
+      if (refreshToken) localStorage.setItem('lumiere_refresh', refreshToken);
       localStorage.setItem('lumiere_user', JSON.stringify(user));
-      set({ user, token, isGuest: false });
+      set({ user, token, refreshToken: refreshToken || get().refreshToken, isGuest: false, isBanned: user?.isBanned || false, subscriptionStatus: user?.subscriptionStatus || 'free' });
     } else {
-      localStorage.removeItem('lumiere_token');
-      localStorage.removeItem('lumiere_user');
-      set({ user: null, token: null, isGuest: true });
+      get().logout();
     }
   },
   logout: () => {
     localStorage.removeItem('lumiere_token');
+    localStorage.removeItem('lumiere_refresh');
     localStorage.removeItem('lumiere_user');
-    set({ user: null, token: null, documents: [], activeDocumentId: null, content: '', title: '', isGuest: true });
+    set({ user: null, token: null, refreshToken: null, documents: [], activeDocumentId: null, content: '', title: '', isGuest: true, isBanned: false, subscriptionStatus: 'free' });
     get().initializeGuestMode();
   },
   updateSettings: (updates) => {
-    const currentSettings = get().editorSettings;
-    const newSettings = { ...currentSettings, ...updates };
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('lumiere_settings', JSON.stringify(newSettings));
-    }
+    const newSettings = { ...get().editorSettings, ...updates };
+    localStorage.setItem('lumiere_settings', JSON.stringify(newSettings));
     set({ editorSettings: newSettings });
   },
   setTourComplete: (complete) => {
@@ -134,66 +123,43 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ tourComplete: complete });
   },
   setAdminStats: (adminStats) => set({ adminStats }),
-  // Guest Logic
   initializeGuestMode: () => {
     const stored = localStorage.getItem('lumiere_guest_docs');
-    if (stored) {
-      set({ guestDocuments: JSON.parse(stored) });
-    }
+    if (stored) set({ guestDocuments: JSON.parse(stored) });
   },
   addGuestDocument: (doc) => {
     set((state) => {
-      const nextDocs = [doc, ...state.guestDocuments].slice(0, GUEST_LIMIT);
-      localStorage.setItem('lumiere_guest_docs', JSON.stringify(nextDocs));
-      return { guestDocuments: nextDocs };
+      const next = [doc, ...state.guestDocuments].slice(0, 10);
+      localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
+      return { guestDocuments: next };
     });
   },
   updateGuestDocument: (id, updates) => {
     set((state) => {
-      const nextDocs = state.guestDocuments.map(d => d.id === id ? { ...d, ...updates, updatedAt: Date.now() } : d);
-      localStorage.setItem('lumiere_guest_docs', JSON.stringify(nextDocs));
-      return { guestDocuments: nextDocs };
+      const next = state.guestDocuments.map(d => d.id === id ? { ...d, ...updates, updatedAt: Date.now() } : d);
+      localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
+      return { guestDocuments: next };
     });
   },
   deleteGuestDocument: (id) => {
     set((state) => {
-      const nextDocs = state.guestDocuments.filter(d => d.id !== id);
-      localStorage.setItem('lumiere_guest_docs', JSON.stringify(nextDocs));
-      return { guestDocuments: nextDocs };
+      const next = state.guestDocuments.filter(d => d.id !== id);
+      localStorage.setItem('lumiere_guest_docs', JSON.stringify(next));
+      return { guestDocuments: next };
     });
   },
   migrateGuestDocuments: async () => {
-    const state = get();
-    if (state.isGuest || !state.token || state.guestDocuments.length === 0) return;
+    const { isGuest, token, guestDocuments } = get();
+    if (isGuest || !token || guestDocuments.length === 0) return;
     try {
-      await Promise.all(state.guestDocuments.map(async (doc) => {
-        await api('/api/documents', {
-          method: 'POST',
-          body: JSON.stringify({ title: doc.title, content: doc.content }),
-          headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-      }));
+      await Promise.all(guestDocuments.map(doc => api('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({ title: doc.title, content: doc.content })
+      })));
       set({ guestDocuments: [] });
       localStorage.removeItem('lumiere_guest_docs');
-      const updatedDocs = await api<{ items: Document[] }>('/api/documents', {
-        headers: { 'Authorization': `Bearer ${state.token}` }
-      });
-      set({ documents: updatedDocs.items });
-    } catch (e) {
-      console.error('Migration failed', e);
-    }
+      const updated = await api<{ items: Document[] }>('/api/documents');
+      set({ documents: updated.items });
+    } catch (e) { console.error('Migration failed', e); }
   }
 }));
-/**
- * Derived selectors for document statistics
- */
-export const getWordCount = (content: string) => {
-  return content.trim() ? content.trim().split(/\s+/).length : 0;
-};
-export const getReadingTime = (content: string) => {
-  const words = getWordCount(content);
-  return Math.max(1, Math.ceil(words / 200));
-};
-export const getCharacterCount = (content: string) => {
-  return content.length;
-};

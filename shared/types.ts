@@ -20,6 +20,7 @@ export interface Document {
   viewCount?: number;
 }
 export type UserRole = 'user' | 'admin';
+export type SubscriptionStatus = 'free' | 'pro';
 export interface User {
   id: string;
   name: string;
@@ -28,12 +29,28 @@ export interface User {
   passwordHash?: string;
   salt?: string;
   createdAt?: number;
+  isBanned?: boolean;
+  subscriptionStatus?: SubscriptionStatus;
+  planExpiresAt?: number;
+  refreshVersion?: number;
+}
+export interface SystemLog {
+  id: string;
+  timestamp: number;
+  level: 'info' | 'warn' | 'error' | 'security';
+  event: string;
+  userId?: string;
+  ip?: string;
+  details?: string;
 }
 export interface AdminStats {
   totalUsers: number;
   totalDocs: number;
   activeShares: number;
   storageUsed: number;
+  bannedUsers: number;
+  totalStorageBytes: number;
+  recentErrors: number;
   dailyStats: ChartData[];
 }
 export interface ChartData {
@@ -48,6 +65,7 @@ export interface EditorSettings {
 export interface AuthResponse {
   user: User;
   token: string;
+  refreshToken: string;
 }
 export interface Chat {
   id: string;

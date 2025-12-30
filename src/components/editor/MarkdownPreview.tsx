@@ -7,15 +7,20 @@ import rehypeKatex from 'rehype-katex';
 import { useEditorStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import mermaid from 'mermaid';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import 'highlight.js/styles/github-dark.css';
 import 'katex/dist/katex.min.css';
-mermaid.initialize({ 
-  startOnLoad: true, 
-  theme: 'dark', 
-  securityLevel: 'loose',
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'dark',
+  securityLevel: 'loose', // Still "loose" for rendering functionality, but we wrap in manual filters
   fontFamily: 'Inter, sans-serif'
 });
+const sanitizeMermaid = (code: string) => {
+  // Simple heuristic for script injection prevention in diagrams
+  const dangerousPatterns = [/<script/i, /javascript:/i, /onclick/i, /onload/i, /onerror/i];
+  return !dangerousPatterns.some(p => p.test(code));
+};
 const MermaidDiagram = ({ code }: { code: string }) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +28,11 @@ const MermaidDiagram = ({ code }: { code: string }) => {
   useEffect(() => {
     let isMounted = true;
     const render = async () => {
+      if (!sanitizeMermaid(code)) {
+        if (isMounted) setError('Security violation detected in diagram source');
+        setIsRendering(false);
+        return;
+      }
       setIsRendering(true);
       try {
         const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
@@ -40,13 +50,18 @@ const MermaidDiagram = ({ code }: { code: string }) => {
     render();
     return () => { isMounted = false; };
   }, [code]);
-  if (error) return <div className="p-4 bg-destructive/10 text-destructive text-xs rounded-lg font-mono">{error}</div>;
+  if (error) return (
+    <div className="p-6 bg-rose-50 dark:bg-rose-950/20 text-rose-600 text-xs rounded-2xl border border-rose-100 dark:border-rose-900/50 flex items-center gap-3 font-medium">
+      <ShieldAlert className="w-5 h-5 shrink-0" />
+      {error}
+    </div>
+  );
   return (
-    <div className="my-6 relative min-h-[100px] flex items-center justify-center bg-muted/30 dark:bg-slate-900/50 p-6 rounded-2xl border border-border/50 transition-all">
+    <div className="my-8 relative min-h-[120px] flex items-center justify-center bg-muted/20 dark:bg-slate-900/40 p-10 rounded-3xl border border-border/40 transition-all shadow-inner">
       {isRendering ? (
-        <div className="flex flex-col items-center gap-2 text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-[10px] font-bold uppercase tracking-widest">Rendering Diagram</span>
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Rendering Studio Diagram</span>
         </div>
       ) : (
         <div dangerouslySetInnerHTML={{ __html: svg }} className="w-full flex justify-center overflow-auto" />
@@ -83,7 +98,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
         if (typeof ref === 'function') ref(node);
         else if (ref) (ref as any).current = node;
       }}
-      className={cn("h-full w-full overflow-auto bg-card p-6 md:p-10 scroll-smooth selection:bg-brand-100 dark:selection:bg-brand-900", className)}
+      className={cn("h-full w-full overflow-auto bg-card p-6 md:p-12 lg:p-16 scroll-smooth selection:bg-brand-100 dark:selection:bg-brand-900/50", className)}
     >
       <div className="max-w-3xl mx-auto">
         <article className={cn(
@@ -91,10 +106,10 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
           "prose-headings:font-display prose-headings:font-bold prose-headings:tracking-tight",
           "prose-a:text-brand-600 dark:prose-a:text-brand-400 prose-a:no-underline hover:prose-a:underline transition-colors",
           "prose-code:text-brand-600 dark:prose-code:text-brand-400 prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none",
-          "prose-pre:bg-slate-950 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-2xl prose-pre:p-6 prose-pre:shadow-xl",
-          "prose-blockquote:border-l-brand-500 prose-blockquote:bg-brand-500/5 dark:prose-blockquote:bg-brand-400/5 prose-blockquote:py-2 prose-blockquote:px-6 prose-blockquote:rounded-r-2xl prose-blockquote:not-italic prose-blockquote:font-medium",
-          "prose-img:rounded-2xl prose-img:shadow-lg",
-          "prose-hr:border-border/50"
+          "prose-pre:bg-slate-950 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-2xl prose-pre:p-8 prose-pre:shadow-2xl",
+          "prose-blockquote:border-l-4 prose-blockquote:border-l-brand-500 prose-blockquote:bg-brand-500/5 dark:prose-blockquote:bg-brand-400/5 prose-blockquote:py-4 prose-blockquote:px-8 prose-blockquote:rounded-r-3xl prose-blockquote:not-italic prose-blockquote:font-medium",
+          "prose-img:rounded-3xl prose-img:shadow-2xl",
+          "prose-hr:border-border/60"
         )}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
@@ -105,7 +120,8 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
                 if (match?.[1] === 'mermaid') {
                   return <MermaidDiagram code={String(children).replace(/\n$/, '')} />;
                 }
-                return <code className={className} {...props}>{children}</code>;
+                // Prevent dangerously huge inline code blocks
+                return <code className={cn(className, "break-words")} {...props}>{children}</code>;
               }
             }}
           >

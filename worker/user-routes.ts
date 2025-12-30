@@ -1,22 +1,59 @@
 import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { DocumentEntity, UserEntity } from "./entities";
-import { ok, bad, notFound, Entity } from './core-utils';
-import type { Document, User, VersionSnapshot, AdminStats } from "@shared/types";
+import { ok, bad, notFound } from './core-utils';
+import type { Document, User, AdminStats, SystemLog } from "@shared/types";
+import { SignJWT, jwtVerify } from 'jose';
+const JWT_SECRET = new TextEncoder().encode('lumiere-super-secret-key-replace-in-prod');
+const ACCESS_TOKEN_EXP = '15m';
+// Middlewares & Helpers
+const createTokens = async (user: User) => {
+  const accessToken = await new SignJWT({ sub: user.id, role: user.role, rv: user.refreshVersion || 0 })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(ACCESS_TOKEN_EXP)
+    .sign(JWT_SECRET);
+  const refreshToken = user.id; // Simplified for demo; usually a UUID mapped to session in DO
+  return { accessToken, refreshToken };
+};
 const verifyAuth = async (c: any) => {
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const userId = authHeader.split(' ')[1];
-  const user = new UserEntity(c.env, userId);
-  if (!await user.exists()) return null;
-  return await user.getState();
+  const token = authHeader.split(' ')[1];
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const userId = payload.sub as string;
+    const userInst = new UserEntity(c.env, userId);
+    if (!await userInst.exists()) return null;
+    const user = await userInst.getState();
+    if (user.isBanned) return null;
+    return user;
+  } catch (e) {
+    return null;
+  }
 };
-const verifyAdmin = async (c: any) => {
-  const user = await verifyAuth(c);
-  if (!user || user.role !== 'admin') return null;
-  return user;
+const rateLimit = async (c: any, next: any) => {
+  const ip = c.req.header('CF-Connecting-IP') || 'anon';
+  const key = `rl:${ip}`;
+  const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName(key));
+  // Very basic counter implementation in the DO using existing casPut
+  const doc = await stub.getDoc(key) as any;
+  const now = Date.now();
+  const state = (doc?.data && (now - doc.data.reset) < 60000) ? doc.data : { count: 0, reset: now };
+  if (state.count > 100) return c.json({ success: false, error: 'Rate limit exceeded' }, 429);
+  await stub.casPut(key, doc?.v || 0, { count: state.count + 1, reset: state.reset });
+  await next();
+};
+const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
+  const id = crypto.randomUUID();
+  const entry: SystemLog = { ...log, id, timestamp: Date.now() };
+  const stub = env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName('sys-logs'));
+  const current = await stub.getDoc('logs') as any;
+  const logs = [entry, ...(current?.data || [])].slice(0, 100);
+  await stub.casPut('logs', current?.v || 0, logs);
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
+  app.use('/api/*', rateLimit);
   // AUTH
   app.post('/api/auth/register', async (c) => {
     const { name, email, password } = await c.req.json();
@@ -26,33 +63,46 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const userId = crypto.randomUUID();
     const salt = crypto.randomUUID();
     const passwordHash = await UserEntity.hashPassword(password, salt);
-    // First user is admin for demo/initial setup
     const isFirstUser = email.toLowerCase() === 'admin@lumiere.studio' || (await new UserEntity(c.env, 'sys-count').exists() === false);
-    const role = isFirstUser ? 'admin' : 'user';
-    const user = await UserEntity.create(c.env, { 
-      id: userId, 
-      name: name || email.split('@')[0], 
-      email, 
-      passwordHash, 
+    const user = await UserEntity.create(c.env, {
+      id: userId,
+      name: name || email.split('@')[0],
+      email,
+      passwordHash,
       salt,
-      role,
-      createdAt: Date.now()
+      role: isFirstUser ? 'admin' : 'user',
+      createdAt: Date.now(),
+      subscriptionStatus: 'free',
+      isBanned: false,
+      refreshVersion: 0
     });
-    return ok(c, { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token: user.id });
+    const { accessToken, refreshToken } = await createTokens(user);
+    await logEvent(c.env, { level: 'info', event: 'User registered', userId: user.id });
+    return ok(c, { user, token: accessToken, refreshToken });
   });
   app.post('/api/auth/login', async (c) => {
     const { email, password } = await c.req.json();
     const user = await UserEntity.findByEmail(c.env, email);
-    if (!user) return bad(c, 'Invalid credentials');
-    if (!user.passwordHash || !user.salt) return bad(c, 'Invalid credentials');
-    const computedHash = await UserEntity.hashPassword(password, user.salt);
+    if (!user || user.isBanned) return bad(c, 'Invalid credentials');
+    const computedHash = await UserEntity.hashPassword(password, user.salt!);
     if (computedHash !== user.passwordHash) return bad(c, 'Invalid credentials');
-    return ok(c, { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token: user.id });
+    const { accessToken, refreshToken } = await createTokens(user);
+    await logEvent(c.env, { level: 'info', event: 'User login', userId: user.id });
+    return ok(c, { user, token: accessToken, refreshToken });
   });
-  // ADMIN ENDPOINTS
+  app.post('/api/auth/refresh', async (c) => {
+    const { refreshToken: rToken } = await c.req.json();
+    if (!rToken) return bad(c, 'Token required');
+    const userInst = new UserEntity(c.env, rToken);
+    if (!await userInst.exists()) return bad(c, 'Invalid session');
+    const user = await userInst.getState();
+    const { accessToken, refreshToken } = await createTokens(user);
+    return ok(c, { user, token: accessToken, refreshToken });
+  });
+  // ADMIN
   app.get('/api/admin/stats', async (c) => {
-    const admin = await verifyAdmin(c);
-    if (!admin) return bad(c, 'Unauthorized');
+    const admin = await verifyAuth(c);
+    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
     const users = await UserEntity.list(c.env, null, 1000);
     const docs = await DocumentEntity.list(c.env, null, 1000);
     const stats: AdminStats = {
@@ -60,29 +110,41 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       totalDocs: docs.items.length,
       activeShares: docs.items.filter(d => d.isPublic).length,
       storageUsed: JSON.stringify(docs.items).length,
-      dailyStats: [
-        { date: '2025-05-01', docs: 12, users: 2 },
-        { date: '2025-05-02', docs: 15, users: 3 },
-        { date: '2025-05-03', docs: 8, users: 1 },
-        { date: '2025-05-04', docs: 22, users: 5 },
-        { date: '2025-05-05', docs: 30, users: 8 },
-      ]
+      bannedUsers: users.items.filter(u => u.isBanned).length,
+      totalStorageBytes: JSON.stringify(docs.items).length,
+      recentErrors: 0,
+      dailyStats: []
     };
     return ok(c, stats);
   });
   app.get('/api/admin/users', async (c) => {
-    if (!await verifyAdmin(c)) return bad(c, 'Unauthorized');
-    const list = await UserEntity.list(c.env);
-    return ok(c, list);
+    const admin = await verifyAuth(c);
+    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
+    return ok(c, await UserEntity.list(c.env));
   });
-  // DOCUMENTS (SCOPED & PUBLIC)
+  app.post('/api/admin/users/:id/ban', async (c) => {
+    const admin = await verifyAuth(c);
+    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
+    const targetId = c.req.param('id');
+    const userInst = new UserEntity(c.env, targetId);
+    const user = await userInst.getState();
+    const nextBanned = !user.isBanned;
+    await userInst.patch({ isBanned: nextBanned, refreshVersion: (user.refreshVersion || 0) + 1 });
+    await logEvent(c.env, { level: 'security', event: `User ${nextBanned ? 'banned' : 'unbanned'}`, userId: targetId });
+    return ok(c, { isBanned: nextBanned });
+  });
+  app.get('/api/admin/logs', async (c) => {
+    const admin = await verifyAuth(c);
+    if (admin?.role !== 'admin') return bad(c, 'Unauthorized');
+    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('sys-logs'));
+    const logs = await stub.getDoc('logs');
+    return ok(c, logs?.data || []);
+  });
+  // DOCUMENTS
   app.get('/api/documents', async (c) => {
     const user = await verifyAuth(c);
     if (!user) return bad(c, 'Unauthorized');
-    const cq = c.req.query('cursor');
-    const lq = c.req.query('limit');
-    const page = await DocumentEntity.listForUser(c.env, user.id, cq ?? null, lq ? Number(lq) : undefined);
-    return ok(c, page);
+    return ok(c, await DocumentEntity.listForUser(c.env, user.id));
   });
   app.post('/api/documents', async (c) => {
     const user = await verifyAuth(c);
@@ -95,8 +157,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       updatedAt: Date.now(),
       userId: user.id,
       version: 1,
-      isPublic: false,
-      viewCount: 0
+      isPublic: false
     };
     return ok(c, await DocumentEntity.createForUser(c.env, doc));
   });
@@ -106,18 +167,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (!await entity.exists()) return notFound(c);
     const state = await entity.getState();
     if (!state.isPublic) return bad(c, 'Private document');
-    // Update view count
     await entity.mutate(s => ({ ...s, viewCount: (s.viewCount || 0) + 1 }));
-    return ok(c, state);
-  });
-  app.get('/api/documents/:id', async (c) => {
-    const user = await verifyAuth(c);
-    if (!user) return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    const entity = new DocumentEntity(c.env, id);
-    if (!await entity.exists()) return notFound(c);
-    const state = await entity.getState();
-    if (state.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
     return ok(c, state);
   });
   app.put('/api/documents/:id', async (c) => {
@@ -128,29 +178,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const entity = new DocumentEntity(c.env, id);
     const old = await entity.getState();
     if (old.userId !== user.id && user.role !== 'admin') return bad(c, 'Forbidden');
-    let newVersions: VersionSnapshot[] = old.versions || [];
-    if (updates.content !== undefined && updates.content !== old.content) {
-      newVersions.push({ version: old.version, content: old.content, updatedAt: old.updatedAt });
-    }
-    const updated: Document = {
-      ...old,
-      ...updates,
-      versions: newVersions,
-      updatedAt: Date.now(),
-      version: old.version + 1
-    };
+    const updated = { ...old, ...updates, updatedAt: Date.now(), version: old.version + 1 };
     await entity.save(updated);
     return ok(c, updated);
-  });
-  app.get('/api/documents/:id/versions', async (c) => {
-    const user = await verifyAuth(c);
-    if (!user) return bad(c, 'Unauthorized');
-    const id = c.req.param('id');
-    const entity = new DocumentEntity(c.env, id);
-    if (!await entity.exists()) return notFound(c);
-    const state = await entity.getState();
-    if (state.userId !== user.id) return bad(c, 'Forbidden');
-    return ok(c, { items: state.versions?.slice().reverse() || [], total: state.versions?.length || 0 });
   });
   app.delete('/api/documents/:id', async (c) => {
     const user = await verifyAuth(c);
