@@ -48,8 +48,8 @@ const MermaidDiagram = ({ code }: { code: string }) => {
       }
     };
     render();
-    return () => { 
-      isMounted = false; 
+    return () => {
+      isMounted = false;
     };
   }, [code]);
   if (error) return (
@@ -163,4 +163,4 @@ export const MarkdownPreview = ({
       </div>
     </div>
   );
-});
+};
