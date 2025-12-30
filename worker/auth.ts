@@ -16,7 +16,9 @@ function arrayBufferToBase64url(ab: ArrayBuffer): string {
 }
 
 function base64urlToArrayBuffer(b64url: string): ArrayBuffer {
-  const padded = b64url.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice((2 - b64url.length % 4) % 4);
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const padCount = (4 - b64.length % 4) % 4;
+  const padded = b64 + '='.repeat(padCount);
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
@@ -50,7 +52,7 @@ export async function hashPassword(password: string): Promise<{hash: string, sal
 }
 
 export async function verifyPassword(hash: string, salt: string, password: string): Promise<boolean> {
-  const saltBytes = base64urlToArrayBuffer(salt);
+  const saltBytes = new Uint8Array(base64urlToArrayBuffer(salt));
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
@@ -122,7 +124,7 @@ export async function verifyJwt(token: string, secret: string): Promise<{userId:
       ['verify']
     );
     
-    const signature = base64urlToArrayBuffer(sigB64);
+    const signature = new Uint8Array(base64urlToArrayBuffer(sigB64));
     const valid = await crypto.subtle.verify('HMAC', key, signature, new TextEncoder().encode(data));
     
     if (!valid || !payload.userId) return null;
