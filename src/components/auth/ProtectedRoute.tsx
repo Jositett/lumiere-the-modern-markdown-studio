@@ -22,9 +22,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (res.ok && !cancelled) {
-            const u = await res.json();
-            setAuth(u);
-          } else if (!res.ok) {
+            const apiResp = await res.json();
+            if (apiResp.success && apiResp.data) {
+              const userData = apiResp.data;
+              setAuth(userData);
+            } else {
+              localStorage.removeItem('lumiere_token');
+            }
+          } else {
             localStorage.removeItem('lumiere_token');
           }
         } catch (e) { /* ignore network errors during init */ }

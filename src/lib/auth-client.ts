@@ -26,14 +26,24 @@ export const authClient = {
           }
         };
       } else {
-        const data = await res.json();
-        ls.set('lumiere_token', data.token);
+        const apiResp = await res.json();
+        if (!apiResp.success) {
+          return {
+            data: undefined,
+            error: {
+              status: res.status,
+              message: apiResp.message || 'Failed'
+            }
+          };
+        }
+        const { user, token } = apiResp.data;
+        ls.set('lumiere_token', token);
         return {
           data: {
-            user: data.user,
+            user,
             session: {
               id: crypto.randomUUID(),
-              userId: data.user.id,
+              userId: user.id,
               expiresAt: Date.now() + 86400000
             }
           }
@@ -57,14 +67,24 @@ export const authClient = {
           }
         };
       } else {
-        const data = await res.json();
-        ls.set('lumiere_token', data.token);
+        const apiResp = await res.json();
+        if (!apiResp.success) {
+          return {
+            data: undefined,
+            error: {
+              status: res.status,
+              message: apiResp.message || 'Failed'
+            }
+          };
+        }
+        const { user, token } = apiResp.data;
+        ls.set('lumiere_token', token);
         return {
           data: {
-            user: data.user,
+            user,
             session: {
               id: crypto.randomUUID(),
-              userId: data.user.id,
+              userId: user.id,
               expiresAt: Date.now() + 86400000
             }
           }
@@ -84,17 +104,23 @@ export const authClient = {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (res.ok) {
-      const user = await res.json();
-      return {
-        data: {
-          user,
-          session: {
-            id: crypto.randomUUID(),
-            userId: user.id,
-            expiresAt: Date.now() + 86400000
+      const apiResp = await res.json();
+      if (apiResp.success && apiResp.data) {
+        const user = apiResp.data;
+        return {
+          data: {
+            user,
+            session: {
+              id: crypto.randomUUID(),
+              userId: user.id,
+              expiresAt: Date.now() + 86400000
+            }
           }
-        }
-      };
+        };
+      } else {
+        ls.remove('lumiere_token');
+        return { data: undefined };
+      }
     } else {
       ls.remove('lumiere_token');
       return { data: undefined };
