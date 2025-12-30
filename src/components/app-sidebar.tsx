@@ -20,7 +20,7 @@ export function AppSidebar(): JSX.Element {
   const user = useEditorStore((s) => s.user);
   const logout = useEditorStore((s) => s.logout);
   const [search, setSearch] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const fetchDocuments = useCallback(async () => {
     if (!token) return;
     try {
@@ -33,46 +33,49 @@ export function AppSidebar(): JSX.Element {
     }
   }, [setDocuments, token]);
   useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
-  const createDocument = async (title = 'New Document', content = '') => {
+  const createDocument = useCallback(async (title = 'New Document', content = '') => {
     try {
       const doc = await api<Document>('/api/documents', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ title, content })
       });
-      setDocuments([doc, ...documents]);
+      setDocuments(prev => [doc, ...prev]);
       selectDocument(doc);
       toast.success("Document created");
     } catch (e) {
       toast.error("Failed to create document");
     }
-  };
-  const deleteDocument = async (e: React.MouseEvent, id: string) => {
+  }, [token]);
+  const deleteDocument = useCallback(async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
     try {
       await api(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      setDocuments(documents.filter(d => d.id !== id));
+      setDocuments(prev => prev.filter(d => d.id !== id));
       if (activeDocumentId === id) { setActiveDocumentId(null); setContent(""); setTitle("Untitled Document"); }
       toast.success("Document deleted");
     } catch (e) {
       toast.error("Failed to delete document");
     }
-  };
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  }, [token, activeDocumentId, setDocuments, setActiveDocumentId, setContent, setTitle]);
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      createDocument(file.name.replace(/\.[^/.]+$/, ""), content);
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    try {
+      const content = await file.text();
+      createDocument(file.name.replace(/\.[^.]+$/, ''), content);
+    } catch {}
+    if (e.target) e.target.value = '';
   };
-  const selectDocument = (doc: Document) => {
+  const selectDocument = useCallback(async (doc: Document) => {
     setActiveDocumentId(doc.id); setContent(doc.content); setTitle(doc.title);
-  };
+    try {
+      await useEditorStore.getState().loadVersionsForDoc(doc.id);
+    } catch(e) {
+      console.error(e);
+    }
+  }, [setActiveDocumentId, setContent, setTitle]);
   const filteredDocs = documents.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
   return (
     <Sidebar className="border-r bg-muted/20">
@@ -83,10 +86,15 @@ export function AppSidebar(): JSX.Element {
           </div>
           <span className="text-xl font-display font-bold">Lumiere</span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 border-2 border-dashed border-muted hover:border-brand-400 rounded-xl p-3 transition-all bg-background/50 hover:bg-brand-50/50 dark:hover:bg-brand-950/20"
+             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; e.currentTarget.classList.add('border-brand-400', 'bg-brand-50/50', 'dark:bg-brand-900/20'); }}
+             onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-brand-400', 'bg-brand-50/50', 'dark:bg-brand-900/20'); }}
+             onDrop={async (e) => { e.preventDefault(); const el = e.currentTarget as HTMLElement; el.classList.remove('border-brand-400', 'bg-brand-50/50', 'dark:bg-brand-900/20'); const files: File[] = Array.from(e.dataTransfer.files); const file = files.find(f => f.name.match(/\.(md|txt)$/i)); if (file) { try { const content = await file.text(); createDocument(file.name.replace(/\.[^.]+$/, ''), content); toast.success('Document imported'); } catch { toast.error('Failed to read file'); } } }}>
           <Button onClick={() => createDocument()} className="flex-1 justify-start gap-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg"><Plus className="w-4 h-4" /> New</Button>
-          <Button variant="outline" size="icon" onClick={() => fileInputRef.current?.click()} className="shrink-0"><Upload className="w-4 h-4" /></Button>
-          <input type="file" ref={fileInputRef} onChange={handleImport} accept=".md,.txt" className="hidden" />
+          <Button variant="outline" size="icon" className="shrink-0">
+            <input id="file-upload" type="file" onChange={handleImport} accept=".md,.txt" className="hidden" />
+            <label htmlFor="file-upload" className="cursor-pointer block p-2"><Upload className="w-4 h-4" /></label>
+          </Button>
         </div>
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -108,6 +116,27 @@ export function AppSidebar(): JSX.Element {
             ))}
           </SidebarMenu>
         </SidebarGroup>
+        {activeDocumentId && (() => {
+          const versions = useEditorStore(s => s.versions);
+          if (versions && versions.length > 0) {
+            return (
+              <SidebarGroup>
+                <SidebarGroupLabel>History ({versions.length})</SidebarGroupLabel>
+                <SidebarMenu>
+                  {versions.map((v: any) => (
+                    <SidebarMenuItem key={v.version}>
+                      <SidebarMenuButton onClick={() => { setContent(v.content); toast.success(`Reverted to v${v.version} - ${new Date(v.updatedAt).toLocaleDateString()}`); }} className='justify-start text-xs px-3 py-1.5 hover:bg-muted/50'>
+                        v{v.version}
+                        <span className='text-muted-foreground ml-auto text-[10px]'>{new Date(v.updatedAt).toLocaleDateString()}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            );
+          }
+          return <></>;
+        })()}
       </SidebarContent>
       <SidebarFooter className="p-4 border-t space-y-2">
         <div className="flex items-center gap-3 px-2 py-2">

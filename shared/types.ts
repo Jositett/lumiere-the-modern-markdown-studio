@@ -3,6 +3,12 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
 }
+export interface VersionSnapshot {
+  version: number;
+  content: string;
+  updatedAt: number;
+}
+
 export interface Document {
   id: string;
   title: string;
@@ -11,6 +17,7 @@ export interface Document {
   isPublic?: boolean;
   userId: string;
   version: number;
+  versions?: VersionSnapshot[];
 }
 export interface User {
   id: string;

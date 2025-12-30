@@ -1,5 +1,5 @@
 import { IndexedEntity, Entity } from "./core-utils";
-import type { User, Document } from "@shared/types";
+import type { User, Document, VersionSnapshot } from "@shared/types";
 export class DocumentEntity extends IndexedEntity<Document> {
   static readonly entityName = "document";
   static readonly indexName = "documents"; // This is a fallback; usually we use user-scoped indices
@@ -9,7 +9,8 @@ export class DocumentEntity extends IndexedEntity<Document> {
     content: "",
     updatedAt: Date.now(),
     userId: "",
-    version: 1
+    version: 1,
+    versions: []
   };
   static async listForUser(env: any, userId: string, cursor?: string | null, limit?: number) {
     const userIndexName = `user-docs:${userId}`;
@@ -27,7 +28,8 @@ export class DocumentEntity extends IndexedEntity<Document> {
   }
   static async createForUser(env: any, state: Document) {
     const inst = new DocumentEntity(env, state.id);
-    await inst.save(state);
+    const docWithVersions = { ...state, versions: [{ version: state.version, content: state.content, updatedAt: state.updatedAt }] };
+    await inst.save(docWithVersions);
     // Add to global index (for sys) and user-scoped index
     const globalIdx = new (class extends Entity<any> {
        static readonly entityName = "sys-index-root";
@@ -41,7 +43,7 @@ export class DocumentEntity extends IndexedEntity<Document> {
     })(env, `user-docs:${state.userId}`);
     await globalIdx.add(state.id);
     await userIdx.add(state.id);
-    return state;
+    return docWithVersions;
   }
 }
 export class UserEntity extends IndexedEntity<User> {
@@ -50,8 +52,18 @@ export class UserEntity extends IndexedEntity<User> {
   static readonly initialState: User = { id: "", name: "", email: "" };
 
   static async findByEmail(env: any, email: string): Promise<User | null> {
-    const users = await this.list(env);
-    return users.items.find(u => u.email === email) || null;
+    // Note: Inefficient scan - optimize with email index later
+    const index = new (class extends Entity<any> {
+      static readonly entityName = "sys-index-root";
+      constructor(env: any) { super(env, `index:users`); }
+      async page(c?: string | null, l?: number) {
+        const { keys, next } = await (this as any).stub.listPrefix('i:', c ?? null, l);
+        return { items: keys.map((k: string) => k.slice(2)), next };
+      }
+    })(env);
+    const { items: ids } = await index.page();
+    const users = await Promise.all(ids.map((id: string) => new UserEntity(env, id).getState()));
+    return users.find(u => u.email === email) || null;
   }
   static async hashPassword(password: string, salt: string): Promise<string> {
     const enc = new TextEncoder();

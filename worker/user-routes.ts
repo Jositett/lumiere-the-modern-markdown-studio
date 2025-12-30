@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { DocumentEntity, UserEntity } from "./entities";
 import { ok, bad, notFound } from './core-utils';
-import type { Document, User } from "@shared/types";
+import type { Document, User, VersionSnapshot } from "@shared/types";
 const verifyAuth = async (c: any) => {
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
@@ -81,10 +81,32 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const id = c.req.param('id');
     const updates = await c.req.json();
     const entity = new DocumentEntity(c.env, id);
-    const current = await entity.getState();
-    if (current.userId !== user.id) return bad(c, 'Forbidden');
-    const updated = await entity.mutate(s => ({ ...s, ...updates, updatedAt: Date.now(), version: s.version + 1 }));
+    const old = await entity.getState();
+    if (old.userId !== user.id) return bad(c, 'Forbidden');
+    let newVersions: VersionSnapshot[] = old.versions || [];
+    if (updates.content !== undefined && updates.content !== old.content) {
+      newVersions.push({ version: old.version, content: old.content, updatedAt: old.updatedAt });
+    }
+    const updated: Document = {
+      ...old,
+      ...updates,
+      versions: newVersions,
+      updatedAt: Date.now(),
+      version: old.version + 1
+    };
+    await entity.save(updated);
     return ok(c, updated);
+  });
+
+  app.get('/api/documents/:id/versions', async (c) => {
+    const user = await verifyAuth(c);
+    if (!user) return bad(c, 'Unauthorized');
+    const id = c.req.param('id');
+    const entity = new DocumentEntity(c.env, id);
+    if (!await entity.exists()) return notFound(c);
+    const state = await entity.getState();
+    if (state.userId !== user.id) return bad(c, 'Forbidden');
+    return ok(c, { items: state.versions?.slice().reverse() || [], total: state.versions?.length || 0 });
   });
   app.delete('/api/documents/:id', async (c) => {
     const user = await verifyAuth(c);
