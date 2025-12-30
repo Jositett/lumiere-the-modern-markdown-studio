@@ -10,12 +10,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const user = useEditorStore(s => s.user);
   const setAuth = useEditorStore(s => s.setAuth);
   const location = useLocation();
+  const userId = session?.user?.id ?? '';
 
   useEffect(() => {
-    if (session?.data?.user && !user) {
-      setAuth(session.data.user as any);
+    if (userId && !user) {
+      setAuth(session.user as any);
     }
-  }, [user, session?.data?.user?.id ?? '', setAuth]); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, user, setAuth]);
 
   if (isPending) {
     return (
@@ -25,7 +26,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!session?.data?.session) {
+  if (!session?.session) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 

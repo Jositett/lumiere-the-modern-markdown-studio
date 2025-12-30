@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sparkles, Zap, Shield, Globe, ArrowRight, Check, Code, MessageSquare } from 'lucide-react';
@@ -8,12 +8,8 @@ import { Testimonials } from '@/components/landing/Testimonials';
 import { toast } from 'sonner';
 import { useEditorStore } from '@/lib/store';
 export function HomePage() {
-  const navigate = useNavigate();
   const user = useEditorStore(s => s.user);
   const [email, setEmail] = useState('');
-  const handleStartWriting = () => {
-    navigate('/app');
-  };
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-brand-100 overflow-x-hidden">
       <header className="fixed top-0 w-full z-50 border-b bg-background/80 backdrop-blur-md">
@@ -36,13 +32,13 @@ export function HomePage() {
                 <Button variant="ghost" asChild className="hidden sm:inline-flex">
                   <Link to="/auth">Login</Link>
                 </Button>
-                <Button onClick={handleStartWriting} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
-                  Start Writing
+                <Button asChild className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
+                  <Link to="/app">Start Writing</Link>
                 </Button>
               </>
             ) : (
-              <Button onClick={() => navigate('/app')} className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
-                Go to Studio
+              <Button asChild className="bg-brand-600 hover:bg-brand-700 text-white rounded-lg">
+                <Link to="/app">Go to Studio</Link>
               </Button>
             )}
           </div>
@@ -87,8 +83,8 @@ export function HomePage() {
                 transition={{ delay: 0.3 }}
                 className="flex flex-wrap gap-4"
               >
-                <Button onClick={handleStartWriting} size="lg" className="h-14 px-8 text-lg bg-brand-600 hover:bg-brand-700 shadow-xl shadow-brand-500/20 rounded-xl">
-                  Try Guest Mode <ArrowRight className="ml-2 w-5 h-5" />
+                <Button asChild size="lg" className="h-14 px-8 text-lg bg-brand-600 hover:bg-brand-700 shadow-xl shadow-brand-500/20 rounded-xl">
+                  <Link to="/app">Try Guest Mode <ArrowRight className="ml-2 w-5 h-5" /></Link>
                 </Button>
                 <Button variant="outline" size="lg" asChild className="h-14 px-8 text-lg rounded-xl border-2">
                   <Link to="/pricing">View Pro Plans</Link>
