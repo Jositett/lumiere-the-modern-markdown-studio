@@ -86,7 +86,8 @@ function runSetupCommands() {
     "bun add react-to-print@^2.14.14",
     "bun add @tailwindcss/typography@^0.5.13",
     "bun install @codemirror/language-data",
-    "bun add jose remark-math rehype-katex mermaid @uiw/codemirror-themes"
+    "bun add jose remark-math rehype-katex mermaid @uiw/codemirror-themes",
+    "bun add remark-parse remark-rehype rehype-stringify"
 ];
     
     if (commands.length === 0) {
