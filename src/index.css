@@ -72,10 +72,10 @@
 }
 /* Custom Selection Color */
 ::selection {
-  @apply bg-brand-100 text-brand-900;
+  @apply bg-primary/10 text-primary/90;
 }
 .dark ::selection {
-  @apply bg-brand-900 text-brand-100;
+  @apply bg-primary/20 text-primary/90;
 }
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
@@ -104,6 +104,33 @@
     max-width: 100% !important;
     padding: 2rem !important;
     margin: 0 auto !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+  }
+  .prose h1 {
+    font-size: 24pt !important;
+    margin: 1em 0 0.5em 0 !important;
+    page-break-after: avoid !important;
+  }
+  .prose h2, .prose h3 {
+    margin-top: 1.5em !important;
+    margin-bottom: 0.5em !important;
+    page-break-after: avoid !important;
+  }
+  .prose p, .prose ul, .prose ol, .prose li {
+    margin-bottom: 0.75em !important;
+  }
+  .prose blockquote {
+    margin: 1em 0 !important;
+  }
+  .prose pre {
+    page-break-inside: avoid !important;
+    overflow-x: auto !important;
+  }
+  .prose img {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid !important;
   }
   body, .main, main {
     background: white !important;
@@ -112,6 +139,7 @@
     margin: 0 !important;
     height: auto !important;
     overflow: visible !important;
+    font-family: system-ui, sans-serif !important;
   }
   .bg-card {
     border: none !important;

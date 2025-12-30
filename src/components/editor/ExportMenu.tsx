@@ -84,36 +84,47 @@ export function ExportMenu() {
   };
   const exportPDF = async () => {
     if (isGuest) {
-      toast.error("Native PDF Export is a Professional feature.");
+      toast.error('Native PDF Export is a Professional feature.');
       return;
     }
     if (!html2pdfReady) {
-      toast.error('PDF engine loading...');
+      toast.error('PDF engine not ready');
       return;
     }
+    const previewEl = document.getElementById('markdown-preview') as HTMLElement | null;
+    if (!previewEl) {
+      toast.error('Preview not visible - switch to preview pane');
+      return;
+    }
+    const clone = previewEl.cloneNode(true) as HTMLElement;
+    Object.assign(clone.style, {
+      position: 'absolute',
+      left: '-10000px',
+      top: '-10000px',
+      width: '21cm',
+      height: 'auto',
+      backgroundColor: 'white',
+      zIndex: '-1',
+      boxSizing: 'border-box'
+    });
+    document.body.appendChild(clone);
     const html2pdf = (window as any).html2pdf;
-    const htmlContent = `<div class="markdown-body"><h1>${title}</h1><hr />${content}</div>`;
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlContent;
-    tempDiv.className = 'markdown-body';
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-99999px';
-    document.body.appendChild(tempDiv);
     try {
       await html2pdf()
         .set({
-          margin: [0.5, 0.5, 0.5, 0.5],
+          margin: [1, 1, 1, 1],
           filename: `${title || 'document'}.pdf`,
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+          jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
         })
-        .from(tempDiv)
+        .from(clone)
         .save();
       toast.success('PDF exported');
     } catch (e) {
       toast.error('PDF export failed');
     } finally {
-      document.body.removeChild(tempDiv);
+      document.body.removeChild(clone);
     }
   };
   return (

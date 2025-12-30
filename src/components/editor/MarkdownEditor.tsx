@@ -5,22 +5,27 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import * as themes from '@uiw/codemirror-themes';
 import { useEditorStore } from '@/lib/store';
+import { useTheme } from '@/hooks/use-theme';
 export function MarkdownEditor() {
   const content = useEditorStore((s) => s.content);
   const setContent = useEditorStore((s) => s.setContent);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const editorSettings = useEditorStore((s) => s.editorSettings);
+  const { isDark } = useTheme();
   const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
-  const themeName = (editorSettings.theme || 'vscodeDark') as string;
   const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
+  const selectedTheme = React.useMemo(() => {
+    const effectiveTheme = editorSettings.theme === 'auto' ? (isDark ? 'vscodeDark' : 'vscodeLight') : (editorSettings.theme || 'vscodeDark');
+    const themeName = effectiveTheme as string;
+    return (themes as any)[themeName] || (themes as any)['vscodeDark'];
+  }, [editorSettings.theme, isDark]);
   const viewRef = useRef<EditorView | null>(null);
   const rafRef = useRef(0);
   const cmRef = useRef<any>(null);
   const lastScrollTopRef = useRef(0);
   const isUserScrollingRef = useRef(false);
   const currentPercentageRef = useRef<number | undefined>(undefined);
-  // Use bracket notation to avoid TS2339 property access errors on dynamic themes
-  const selectedTheme = (themes as any)[themeName] || (themes as any)['vscodeDark'];
+
   const handleScroll = useCallback((view: EditorView) => {
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
@@ -38,7 +43,7 @@ export function MarkdownEditor() {
         isUserScrollingRef.current = false;
       }, 100);
     });
-  }, [currentPercentageRef, setScrollPercentage, rafRef, isUserScrollingRef, lastScrollTopRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [setScrollPercentage]); // Only stable deps - refs are stable and accessed via .current
 
   useEffect(() => {
     return () => {

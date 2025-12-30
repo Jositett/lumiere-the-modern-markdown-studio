@@ -5,17 +5,13 @@ import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import { useEditorStore } from '@/lib/store';
+import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import mermaid from 'mermaid';
 import { Loader2, ShieldAlert } from 'lucide-react';
-import 'highlight.js/styles/github-dark.css';
+
 import 'katex/dist/katex.min.css';
-mermaid.initialize({
-  startOnLoad: true,
-  theme: 'dark',
-  securityLevel: 'loose', // Still "loose" for rendering functionality, but we wrap in manual filters
-  fontFamily: 'Inter, sans-serif'
-});
+
 const sanitizeMermaid = (code: string) => {
   // Simple heuristic for script injection prevention in diagrams
   const dangerousPatterns = [/<script/i, /javascript:/i, /onclick/i, /onload/i, /onerror/i];
@@ -29,22 +25,30 @@ const MermaidDiagram = ({ code }: { code: string }) => {
     let isMounted = true;
     const render = async () => {
       if (!sanitizeMermaid(code)) {
-        if (isMounted) setError('Security violation detected in diagram source');
-        setIsRendering(false);
+        if (isMounted) {
+          setError('Security violation detected in diagram source');
+          setIsRendering(false);
+        }
         return;
       }
+      
       setIsRendering(true);
+      setError(null);
+      
       try {
         const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
         const { svg: renderedSvg } = await mermaid.render(id, code);
         if (isMounted) {
           setSvg(renderedSvg);
-          setError(null);
         }
       } catch (err) {
-        if (isMounted) setError('Mermaid rendering error');
+        if (isMounted) {
+          setError('Mermaid rendering error');
+        }
       } finally {
-        if (isMounted) setIsRendering(false);
+        if (isMounted) {
+          setIsRendering(false);
+        }
       }
     };
     render();
@@ -82,6 +86,7 @@ export const MarkdownPreview = ({
   className
 }: MarkdownPreviewProps) => {
   const storeContent = useEditorStore((s) => s.content);
+  const { isDark } = useTheme();
   const storeScroll = useEditorStore((s) => s.scrollPercentage);
   const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
   const content = propsContent !== undefined ? propsContent : storeContent;
@@ -126,8 +131,37 @@ export const MarkdownPreview = ({
   useEffect(() => {
     scrollPercentageRef.current = scrollPercentage;
   }, [scrollPercentage]);
+
+  useEffect(() => {
+    mermaid.initialize({ 
+      startOnLoad: false, 
+      theme: isDark ? 'dark' : 'neutral', 
+      securityLevel: 'loose', 
+      fontFamily: 'Inter, sans-serif' 
+    });
+  }, [isDark]);
+
+  useEffect(() => {
+    const linkId = 'hljs-theme';
+    let link = document.getElementById(linkId) as HTMLLinkElement | null;
+    const href = isDark
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css'
+      : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/default.min.css';
+
+    // Remove existing link first
+    if (link) {
+      link.remove();
+    }
+
+    link = document.createElement('link');
+    link.id = linkId;
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+  }, [isDark]);
   return (
     <div
+      id="markdown-preview"
       ref={internalRef}
       onScroll={handlePreviewScroll}
       className={cn("h-full w-full overflow-auto bg-card p-6 md:p-12 lg:p-16 scroll-smooth selection:bg-brand-100 dark:selection:bg-brand-900/50", className)}

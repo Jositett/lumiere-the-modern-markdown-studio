@@ -73,7 +73,8 @@ export function AppSidebar(): JSX.Element {
       selectDocument(doc);
       toast.success("Document created");
     } catch (e: any) {
-      toast.error(`Document creation failed ${e.status ? `(${e.status})` : ''}: ${e.message}` || 'Unknown error');
+      const prefix = e.status ? `(${e.status}) ` : '';
+      toast.error(`Document creation failed${prefix}: ${e.message || 'Unknown error'}`);
     }
   }, [addGuestDocument, selectDocument]);
 
@@ -99,7 +100,8 @@ export function AppSidebar(): JSX.Element {
       if (currentActiveId === id) useEditorStore.getState().setActiveDocumentId(null);
       toast.success("Document deleted");
     } catch (e: any) {
-      toast.error(`Delete failed ${e.status ? `(${e.status})` : ''}: ${e.message}` || 'Unknown error');
+      const prefix = e.status ? `(${e.status}) ` : '';
+      toast.error(`Delete failed${prefix}: ${e.message || 'Unknown error'}`);
     }
   }, [deleteGuestDocument]);
 
@@ -125,7 +127,8 @@ export function AppSidebar(): JSX.Element {
       const data = await api<{ items: Document[] }>('/api/documents');
       useEditorStore.getState().setDocuments(data.items);
     } catch (e: any) {
-      toast.error(`Sync failed ${e.status ? `(${e.status})` : ''}: ${e.message}` || 'Sync failed');
+      const prefix = e.status ? `(${e.status}) ` : '';
+      toast.error(`Sync failed${prefix}: ${e.message || 'Sync failed'}`);
     }
   }, []);
 

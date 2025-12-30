@@ -70,7 +70,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   guestDocuments: [],
   editorSettings: (() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('lumiere_settings') : null;
-    return saved ? JSON.parse(saved) : { theme: 'vscodeDark', fontSize: 16 };
+    return saved ? JSON.parse(saved) : { theme: 'auto', fontSize: 16 };
   })(),
   setContent: (content) => set({ content }),
   setTitle: (title) => set({ title }),
