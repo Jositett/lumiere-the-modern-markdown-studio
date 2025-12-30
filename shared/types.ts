@@ -9,10 +9,22 @@ export interface Document {
   content: string;
   updatedAt: number;
   isPublic?: boolean;
+  userId: string;
+  version: number;
 }
 export interface User {
   id: string;
   name: string;
+  email: string;
+  passwordHash?: string;
+}
+export interface EditorSettings {
+  theme: string;
+  fontSize: number;
+}
+export interface AuthResponse {
+  user: User;
+  token: string;
 }
 export interface Chat {
   id: string;
