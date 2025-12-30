@@ -10,6 +10,14 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
+
+// Suppress ResizeObserver harmless noise
+window.addEventListener('error', (e) => {
+  if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
+    e.stopImmediatePropagation();
+  }
+});
+
 import '@/index.css'
 import { HomePage } from '@/pages/HomePage'
 import EditorPage from '@/pages/EditorPage'

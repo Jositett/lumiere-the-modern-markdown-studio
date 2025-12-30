@@ -1,7 +1,14 @@
-import React, { useCallback, useRef, useEffect, useMemo } from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import React, { useRef, useEffect, useMemo } from 'react';
+import Editor, { OnMount, loader } from '@monaco-editor/react';
 import { useEditorStore } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme';
+import { MONACO_THEMES } from '@/lib/monaco-themes';
+// Configure Monaco loader to be faster
+loader.config({
+  paths: {
+    vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
+  }
+});
 export function MarkdownEditor() {
   const content = useEditorStore((s) => s.content);
   const setContent = useEditorStore((s) => s.setContent);
@@ -13,16 +20,20 @@ export function MarkdownEditor() {
   const editorRef = useRef<any>(null);
   const isSyncingRef = useRef(false);
   const selectedTheme = useMemo(() => {
-    if (editorSettings.theme !== 'auto') return editorSettings.theme;
-    return isDark ? 'vs-dark' : 'vs';
+    if (editorSettings.theme === 'auto') return isDark ? 'vs-dark' : 'vs';
+    return editorSettings.theme;
   }, [editorSettings.theme, isDark]);
   const handleEditorChange = (value: string | undefined) => {
     if (value !== undefined) {
       setContent(value);
     }
   };
-  const handleEditorMount: OnMount = (editor) => {
+  const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    // Register custom themes
+    Object.entries(MONACO_THEMES).forEach(([name, data]) => {
+      monaco.editor.defineTheme(name, data);
+    });
     editor.onDidScrollChange((e) => {
       if (isSyncingRef.current) return;
       const layoutInfo = editor.getLayoutInfo();
@@ -30,7 +41,7 @@ export function MarkdownEditor() {
       const scrollTop = editor.getScrollTop();
       const visibleHeight = layoutInfo.height;
       const scrollable = scrollHeight - visibleHeight;
-      if (scrollable > 10) { // Only sync if there is significant scrollable area
+      if (scrollable > 10) {
         const percentage = scrollTop / scrollable;
         isSyncingRef.current = true;
         setScrollPercentage(percentage);
@@ -47,7 +58,7 @@ export function MarkdownEditor() {
       const scrollable = scrollHeight - visibleHeight;
       if (scrollable <= 0) return;
       const targetScrollTop = scrollPercentage * scrollable;
-      if (Math.abs(editor.getScrollTop() - targetScrollTop) > 2) { // Tiny threshold to prevent jitter
+      if (Math.abs(editor.getScrollTop() - targetScrollTop) > 2) {
         isSyncingRef.current = true;
         editor.setScrollTop(targetScrollTop);
         setTimeout(() => { isSyncingRef.current = false; }, 50);
@@ -77,7 +88,7 @@ export function MarkdownEditor() {
           fontSize: editorSettings.fontSize,
           wordWrap: 'on',
           minimap: { enabled: false },
-          lineNumbers: 'on',
+          lineNumbers: editorSettings.compactMode ? 'off' : 'on',
           scrollBeyondLastLine: false,
           automaticLayout: true,
           padding: { top: 20 },

@@ -11,6 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import mermaid from 'mermaid';
 import { Loader2, ShieldAlert } from 'lucide-react';
+import { HIGHLIGHT_JS_MAP } from '@/lib/monaco-themes';
 import 'katex/dist/katex.min.css';
 const MermaidDiagram = ({ code }: { code: string }) => {
   const [svg, setSvg] = useState<string>('');
@@ -69,12 +70,13 @@ export const MarkdownPreview = ({
   const { isDark } = useTheme();
   const storeScroll = useEditorStore((s) => s.scrollPercentage);
   const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
+  const editorSettings = useEditorStore((s) => s.editorSettings);
   const content = propsContent !== undefined ? propsContent : storeContent;
   const scrollPercentage = propsScroll !== undefined ? propsScroll : storeScroll;
   const internalRef = useRef<HTMLDivElement>(null);
   const isSyncingRef = useRef(false);
   const handlePreviewScroll = useCallback(() => {
-    if (readOnly) return; // Prevent public viewers or static views from updating global state
+    if (readOnly) return;
     const el = internalRef.current;
     if (!el || isSyncingRef.current) return;
     const scrollable = el.scrollHeight - el.clientHeight;
@@ -92,7 +94,7 @@ export const MarkdownPreview = ({
       const scrollable = el.scrollHeight - el.clientHeight;
       if (scrollable <= 0) return;
       const targetScroll = scrollPercentage * scrollable;
-      if (Math.abs(targetScroll - el.scrollTop) > 2) { // Tiny threshold to prevent jitter
+      if (Math.abs(targetScroll - el.scrollTop) > 2) {
         isSyncingRef.current = true;
         el.scrollTo({ top: targetScroll, behavior: 'auto' });
         setTimeout(() => { isSyncingRef.current = false; }, 50);
@@ -116,16 +118,16 @@ export const MarkdownPreview = ({
   useEffect(() => {
     const linkId = 'hljs-theme';
     let link = document.getElementById(linkId) as HTMLLinkElement | null;
-    const href = isDark
-      ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css'
-      : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/default.min.css';
+    const editorTheme = editorSettings.theme === 'auto' ? (isDark ? 'vs-dark' : 'vs') : editorSettings.theme;
+    const hlTheme = HIGHLIGHT_JS_MAP[editorTheme] || (isDark ? 'github-dark' : 'default');
+    const href = `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/${hlTheme}.min.css`;
     if (link) link.remove();
     link = document.createElement('link');
     link.id = linkId;
     link.rel = 'stylesheet';
     link.href = href;
     document.head.appendChild(link);
-  }, [isDark]);
+  }, [editorSettings.theme, isDark]);
   return (
     <div
       id="markdown-preview"

@@ -144,12 +144,20 @@ export default function EditorPage() {
                         <SelectItem value="vs-dark">VS Code Dark</SelectItem>
                         <SelectItem value="vs">VS Code Light</SelectItem>
                         <SelectItem value="hc-black">High Contrast Black</SelectItem>
+                        <SelectItem value="dracula">Dracula (Pro)</SelectItem>
+                        <SelectItem value="monokai">Monokai (Pro)</SelectItem>
+                        <SelectItem value="nord">Nord Studio</SelectItem>
+                        <SelectItem value="github-dark">GitHub Studio</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium">Font Size: {editorSettings.fontSize}px</label>
                     <Slider value={[editorSettings.fontSize]} min={12} max={24} step={1} onValueChange={([v]) => updateSettings({ fontSize: v })} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium">Compact Mode</label>
+                    <Switch checked={editorSettings.compactMode || false} onCheckedChange={(v) => updateSettings({ compactMode: v })} />
                   </div>
                 </PopoverContent>
               </Popover>

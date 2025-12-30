@@ -6,7 +6,8 @@ import {
   ChevronDown,
   Printer,
   DownloadCloud,
-  Star
+  Star,
+  Layers
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { useEditorStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +29,7 @@ export function ExportMenu() {
   const title = useEditorStore(s => s.title);
   const activeDocumentId = useEditorStore(s => s.activeDocumentId);
   const isGuest = useEditorStore(s => s.isGuest);
+  const [preserveTheme, setPreserveTheme] = useState(false);
   const [html2pdfReady, setHtml2pdfReady] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -50,6 +53,8 @@ export function ExportMenu() {
     toast.success("Markdown downloaded");
   };
   const exportHtml = () => {
+    const hlThemeLink = document.getElementById('hljs-theme') as HTMLLinkElement | null;
+    const hlStyle = hlThemeLink ? `<link rel="stylesheet" href="${hlThemeLink.href}">` : '';
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,10 +62,12 @@ export function ExportMenu() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title} | Lumiere Studio</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
+  ${hlStyle}
   <style>
     body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
     @media (max-width: 767px) { body { padding: 15px; } }
     .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; }
+    pre { padding: 16px; border-radius: 8px; overflow: auto; }
   </style>
 </head>
 <body class="markdown-body">
@@ -93,19 +100,27 @@ export function ExportMenu() {
     }
     const previewEl = document.getElementById('markdown-preview') as HTMLElement | null;
     if (!previewEl) {
-      toast.error('Preview not visible - switch to preview pane');
+      toast.error('Preview not visible');
       return;
     }
     const clone = previewEl.cloneNode(true) as HTMLElement;
+    // Inject the actual highlight CSS into the clone if preserving theme
+    if (preserveTheme) {
+      const hlThemeLink = document.getElementById('hljs-theme') as HTMLLinkElement | null;
+      if (hlThemeLink) {
+        const style = document.createElement('link');
+        style.rel = 'stylesheet';
+        style.href = hlThemeLink.href;
+        clone.appendChild(style);
+      }
+    }
     Object.assign(clone.style, {
       position: 'absolute',
       left: '-10000px',
       top: '-10000px',
       width: '21cm',
-      height: 'auto',
-      backgroundColor: 'white',
-      zIndex: '-1',
-      boxSizing: 'border-box'
+      backgroundColor: preserveTheme ? 'inherit' : 'white',
+      padding: '2cm',
     });
     document.body.appendChild(clone);
     const html2pdf = (window as any).html2pdf;
@@ -115,7 +130,7 @@ export function ExportMenu() {
           margin: [1, 1, 1, 1],
           filename: `${title || 'document'}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+          html2canvas: { scale: 2, useCORS: true },
           jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
         })
         .from(clone)
@@ -139,34 +154,35 @@ export function ExportMenu() {
       <DropdownMenuContent align="end" className="w-64 p-2">
         <DropdownMenuLabel className="px-2 py-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">The Press Engine</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <div className="px-2 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="w-3 h-3 text-muted-foreground" />
+            <span className="text-[10px] font-bold uppercase">Preserve Theme</span>
+          </div>
+          <Switch checked={preserveTheme} onCheckedChange={setPreserveTheme} className="scale-75 origin-right" />
+        </div>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={downloadMarkdown} className="gap-3 cursor-pointer py-2.5 rounded-lg">
           <FileText className="w-4 h-4 text-muted-foreground" />
           <div className="flex flex-col">
             <span className="font-medium">Download Markdown</span>
-            <span className="text-[10px] text-muted-foreground">Raw source file (.md)</span>
+            <span className="text-[10px] text-muted-foreground">Raw source (.md)</span>
           </div>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={exportHtml} className="gap-3 cursor-pointer py-2.5 rounded-lg">
           <Code className="w-4 h-4 text-muted-foreground" />
           <div className="flex flex-col">
             <span className="font-medium">Export Styled HTML</span>
-            <span className="text-[10px] text-muted-foreground">Standalone web page</span>
+            <span className="text-[10px] text-muted-foreground">Studio aesthetic HTML</span>
           </div>
         </DropdownMenuItem>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuItem onClick={handlePrint} className="gap-3 cursor-pointer py-2.5 rounded-lg">
-                <Printer className="w-4 h-4 text-muted-foreground" />
-                <div className="flex flex-col">
-                  <span className="font-medium">Print to PDF</span>
-                  <span className="text-[10px] text-muted-foreground">Uses browser print dialog</span>
-                </div>
-              </DropdownMenuItem>
-            </TooltipTrigger>
-            <TooltipContent side="left">Recommended for quick saving</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <DropdownMenuItem onClick={handlePrint} className="gap-3 cursor-pointer py-2.5 rounded-lg">
+          <Printer className="w-4 h-4 text-muted-foreground" />
+          <div className="flex flex-col">
+            <span className="font-medium">Print to PDF</span>
+            <span className="text-[10px] text-muted-foreground">Standard black & white</span>
+          </div>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={exportPDF}
           className={cn("gap-3 cursor-pointer py-2.5 rounded-lg flex items-center justify-between", isGuest && "opacity-70")}
@@ -174,8 +190,8 @@ export function ExportMenu() {
           <div className="flex items-center gap-3">
             <DownloadCloud className="w-4 h-4 text-brand-600" />
             <div className="flex flex-col">
-              <span className="font-medium">Export Native PDF</span>
-              <span className="text-[10px] text-muted-foreground">Pixel-perfect formatting</span>
+              <span className="font-medium">Native PDF</span>
+              <span className="text-[10px] text-muted-foreground">Precision formatting</span>
             </div>
           </div>
           {isGuest && <Badge variant="secondary" className="text-[9px] bg-brand-50 text-brand-700 h-4 px-1.5"><Star className="w-2 h-2 mr-1 fill-current" /> PRO</Badge>}
