@@ -5,9 +5,10 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const token = useEditorStore(s => s.token);
+  const isGuest = useEditorStore(s => s.isGuest);
+  const user = useEditorStore(s => s.user);
   const location = useLocation();
-  if (!token) {
+  if (isGuest && !user) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
   return <>{children}</>;

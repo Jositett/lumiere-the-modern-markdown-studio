@@ -17,13 +17,14 @@ const FEATURES = [
 ];
 export function PricingPage() {
   const navigate = useNavigate();
-  const token = useEditorStore(s => s.token);
+  const user = useEditorStore(s => s.user);
+  const isGuest = useEditorStore(s => s.isGuest);
   const handleSelectPlan = (plan: 'free' | 'pro') => {
     if (plan === 'free') {
       navigate('/app');
       toast.success("Welcome to Basic Tier!");
     } else {
-      if (!token) {
+      if (isGuest && !user) {
         navigate('/auth');
         toast.info("Please sign up to upgrade to Pro");
       } else {
@@ -94,33 +95,6 @@ export function PricingPage() {
               Go Pro <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </Card>
-        </div>
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-display font-bold text-center mb-12">Feature Comparison</h2>
-          <div className="rounded-3xl border bg-card overflow-hidden">
-             <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="p-6 text-sm font-bold uppercase tracking-wider">Feature</th>
-                    <th className="p-6 text-sm font-bold uppercase tracking-wider">Basic</th>
-                    <th className="p-6 text-sm font-bold uppercase tracking-wider">Pro</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {FEATURES.map((row) => (
-                    <tr key={row.name} className="hover:bg-muted/10 transition-colors">
-                      <td className="p-6 text-sm font-medium">{row.name}</td>
-                      <td className="p-6 text-sm text-muted-foreground">
-                        {typeof row.basic === 'boolean' ? (row.basic ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4" />) : row.basic}
-                      </td>
-                      <td className="p-6 text-sm font-bold text-brand-600">
-                        {row.pro === true ? <Check className="w-4 h-4" /> : row.pro}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-             </table>
-          </div>
         </div>
       </div>
     </div>

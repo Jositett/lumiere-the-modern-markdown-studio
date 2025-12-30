@@ -38,7 +38,6 @@ export default function EditorPage() {
   const updateDocumentLocally = useEditorStore((s) => s.updateDocumentLocally);
   const isFocusMode = useEditorStore((s) => s.isFocusMode);
   const setFocusMode = useEditorStore((s) => s.setFocusMode);
-  const token = useEditorStore(s => s.token);
   const user = useEditorStore(s => s.user);
   const isGuest = useEditorStore(s => s.isGuest);
   const tourComplete = useEditorStore(s => s.tourComplete);
@@ -94,11 +93,10 @@ export default function EditorPage() {
   const currentDoc = documents.find(d => d.id === activeDocumentId);
   const isPublic = currentDoc?.isPublic ?? false;
   const togglePublic = async () => {
-    if (!activeDocumentId || !token) return;
+    if (!activeDocumentId || isGuest) return;
     try {
       await api(`/api/documents/${activeDocumentId}`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ isPublic: !isPublic })
       });
       updateDocumentLocally(activeDocumentId, { isPublic: !isPublic });

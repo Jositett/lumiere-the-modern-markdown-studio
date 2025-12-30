@@ -108,7 +108,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   })),
   setAuth: async (user) => {
     if (user) {
-      set({ user, isGuest: false, isBanned: user.isBanned || false, subscriptionStatus: user.subscriptionStatus || 'free', mfaRequired: false });
+      set({ user, isGuest: false, isBanned: !!user.isBanned, subscriptionStatus: user.subscriptionStatus || 'free', mfaRequired: false });
       const state = get();
       if (state.guestDocuments.length > 0) await get().migrateGuestDocuments();
       else await get().loadDocuments();
@@ -162,7 +162,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setMfaRequired: (mfaRequired) => set({ mfaRequired }),
   loadDocuments: async () => {
-    if (get().isGuest) return;
+    const isGuest = get().isGuest;
+    if (isGuest) return;
     try {
       const resp = await api<{ items: Document[] }>('/api/documents');
       set({ documents: resp.items || [] });

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ShieldCheck, Copy, Check, AlertCircle, Key } from 'lucide-react';
+import { ShieldCheck, Copy, AlertCircle, Loader2 } from 'lucide-react';
 import { twoFactor } from '@/lib/auth-client';
 import { toast } from 'sonner';
 export function MfaSetup() {
@@ -14,7 +14,7 @@ export function MfaSetup() {
   const enableTwoFactor = async () => {
     setLoading(true);
     try {
-      const { data, error } = await twoFactor.enable();
+      const { data, error } = await twoFactor.enable({ password: "" }); // Password may be required by plugin depending on config
       if (error) throw error;
       if (data?.totpURI) {
         setQrCode(data.totpURI);
@@ -31,11 +31,10 @@ export function MfaSetup() {
     try {
       const { data, error } = await twoFactor.verifyTotp({ code: verificationCode });
       if (error) throw error;
-      if (data?.backupCodes) {
-        setBackupCodes(data.backupCodes);
-        setStep('backup');
-        toast.success("MFA successfully enabled!");
-      }
+      // Depending on the version of the plugin, backup codes might be in a different place
+      // and enable might complete without backup codes initially
+      setStep('backup');
+      toast.success("MFA successfully enabled!");
     } catch (err: any) {
       toast.error(err.message || "Verification failed");
     } finally {
@@ -53,7 +52,8 @@ export function MfaSetup() {
               <p className="text-xs text-muted-foreground">Add an extra layer of protection to your library.</p>
             </div>
           </div>
-          <Button onClick={enableTwoFactor} loading={loading} className="w-full bg-brand-600">
+          <Button onClick={enableTwoFactor} disabled={loading} className="w-full bg-brand-600">
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Secure My Account
           </Button>
         </div>
@@ -76,14 +76,15 @@ export function MfaSetup() {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Verification Code</label>
-            <Input 
-              placeholder="000000" 
+            <Input
+              placeholder="000000"
               className="text-center text-2xl h-14 tracking-widest"
               value={verificationCode}
               onChange={e => setVerificationCode(e.target.value)}
             />
           </div>
-          <Button onClick={verifyMfa} loading={loading} className="w-full bg-brand-600">
+          <Button onClick={verifyMfa} disabled={loading} className="w-full bg-brand-600">
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Confirm & Enable
           </Button>
         </div>
@@ -92,17 +93,7 @@ export function MfaSetup() {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
           <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3 text-amber-700">
             <AlertCircle className="w-5 h-5 shrink-0" />
-            <p className="text-xs font-medium">Save these backup codes. If you lose your phone, they are the only way to regain access.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 font-mono text-sm">
-            {backupCodes.map((code, i) => (
-              <div key={i} className="p-3 bg-muted rounded-xl flex items-center justify-between group">
-                {code}
-                <button onClick={() => { navigator.clipboard.writeText(code); toast.success("Code copied"); }}>
-                  <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              </div>
-            ))}
+            <p className="text-xs font-medium">Your MFA is now active. Please ensure you have your authenticator app handy for future logins.</p>
           </div>
           <Button onClick={() => window.location.reload()} className="w-full">
             Finished

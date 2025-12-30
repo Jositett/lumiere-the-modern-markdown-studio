@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { FileText, Plus, Search, LogOut, Trash2, ShieldCheck, Upload, User as UserIcon, CloudOff, Rocket } from "lucide-react";
+import { FileText, Plus, Search, LogOut, Trash2, Upload, User as UserIcon, CloudOff, Rocket } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarInput, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction,
 } from "@/components/ui/sidebar";
@@ -13,12 +13,10 @@ import { Link } from "react-router-dom";
 export function AppSidebar(): JSX.Element {
   const documents = useEditorStore((s) => s.documents);
   const guestDocuments = useEditorStore((s) => s.guestDocuments);
-  const setDocuments = useEditorStore((s) => s.setDocuments);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const setActiveDocumentId = useEditorStore((s) => s.setActiveDocumentId);
   const setContent = useEditorStore((s) => s.setContent);
   const setTitle = useEditorStore((s) => s.setTitle);
-  const token = useEditorStore((s) => s.token);
   const user = useEditorStore((s) => s.user);
   const logout = useEditorStore((s) => s.logout);
   const versions = useEditorStore((s) => s.versions);
@@ -26,26 +24,24 @@ export function AppSidebar(): JSX.Element {
   const addGuestDocument = useEditorStore((s) => s.addGuestDocument);
   const deleteGuestDocument = useEditorStore((s) => s.deleteGuestDocument);
   const initializeGuestMode = useEditorStore((s) => s.initializeGuestMode);
+  const loadDocuments = useEditorStore((s) => s.loadDocuments);
+  const loadVersionsForDoc = useEditorStore((s) => s.loadVersionsForDoc);
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectDocument = useCallback(async (doc: Document) => {
     setContent(doc.content);
     setTitle(doc.title);
-    if (!useEditorStore.getState().isGuest) {
+    if (!isGuest) {
       try {
-        await useEditorStore.getState().loadVersionsForDoc(doc.id);
+        await loadVersionsForDoc(doc.id);
       } catch(e) { console.error(e); }
     }
     setActiveDocumentId(doc.id);
-  }, [setActiveDocumentId, setContent, setTitle]);
-
+  }, [setActiveDocumentId, setContent, setTitle, isGuest, loadVersionsForDoc]);
   const createDocument = useCallback(async (title = 'New Document', content = '') => {
-    const currentIsGuest = useEditorStore.getState().isGuest;
-    const currentGuestDocs = useEditorStore.getState().guestDocuments;
-
-    if (currentIsGuest) {
-      if (currentGuestDocs.length >= 10) {
+    if (isGuest) {
+      if (guestDocuments.length >= 10) {
         toast.error("Guest limit reached (10 docs). Upgrade to Pro for unlimited writing!");
         return;
       }
@@ -59,52 +55,41 @@ export function AppSidebar(): JSX.Element {
       };
       addGuestDocument(newDoc);
       selectDocument(newDoc);
-      toast.success("Document created locally. Login for cloud sync!");
+      toast.success("Document created locally.");
       return;
     }
     try {
-      const currentToken = useEditorStore.getState().token;
-      const currentDocuments = useEditorStore.getState().documents;
       const doc = await api<Document>('/api/documents', {
         method: 'POST',
         body: JSON.stringify({ title, content })
       });
-      useEditorStore.getState().setDocuments([doc, ...currentDocuments]);
+      await loadDocuments();
       selectDocument(doc);
       toast.success("Document created");
     } catch (e: any) {
-      const prefix = e.status ? `(${e.status}) ` : '';
-      toast.error(`Document creation failed${prefix}: ${e.message || 'Unknown error'}`);
+      toast.error(`Document creation failed: ${e.message || 'Unknown error'}`);
     }
-  }, [addGuestDocument, selectDocument]);
-
+  }, [isGuest, guestDocuments, addGuestDocument, selectDocument, loadDocuments]);
   const deleteDoc = useCallback(async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
-    const currentIsGuest = useEditorStore.getState().isGuest;
-    const currentActiveId = useEditorStore.getState().activeDocumentId;
-
-    if (currentIsGuest) {
+    if (isGuest) {
       deleteGuestDocument(id);
-      if (currentActiveId === id) {
-        useEditorStore.getState().setActiveDocumentId(null);
+      if (activeDocumentId === id) {
+        setActiveDocumentId(null);
       }
       toast.success("Local document removed");
       return;
     }
     try {
-      const currentToken = useEditorStore.getState().token;
       await api(`/api/documents/${id}`, { method: 'DELETE' });
-      const currentDocuments = useEditorStore.getState().documents;
-      useEditorStore.getState().setDocuments(currentDocuments.filter(d => d.id !== id));
-      if (currentActiveId === id) useEditorStore.getState().setActiveDocumentId(null);
+      await loadDocuments();
+      if (activeDocumentId === id) setActiveDocumentId(null);
       toast.success("Document deleted");
     } catch (e: any) {
-      const prefix = e.status ? `(${e.status}) ` : '';
-      toast.error(`Delete failed${prefix}: ${e.message || 'Unknown error'}`);
+      toast.error(`Delete failed: ${e.message || 'Unknown error'}`);
     }
-  }, [deleteGuestDocument]);
-
+  }, [isGuest, activeDocumentId, deleteGuestDocument, setActiveDocumentId, loadDocuments]);
   const handleFileImport = useCallback(async(e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
@@ -115,26 +100,14 @@ export function AppSidebar(): JSX.Element {
       toast.success(`Imported ${title}`);
     }
   }, [createDocument]);
-
   const currentDocs = isGuest ? guestDocuments : documents;
   useEffect(() => {
-    if (isGuest) initializeGuestMode();
-  }, [isGuest, initializeGuestMode]);
-  const fetchDocuments = useCallback(async () => {
-    const currentToken = useEditorStore.getState().token;
-    if (!currentToken) return;
-    try {
-      const data = await api<{ items: Document[] }>('/api/documents');
-      useEditorStore.getState().setDocuments(data.items);
-    } catch (e: any) {
-      const prefix = e.status ? `(${e.status}) ` : '';
-      toast.error(`Sync failed${prefix}: ${e.message || 'Sync failed'}`);
+    if (isGuest) {
+      initializeGuestMode();
+    } else if (user) {
+      loadDocuments();
     }
-  }, []);
-
-
-
-
+  }, [isGuest, user, initializeGuestMode, loadDocuments]);
   const filteredDocs = currentDocs.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
   return (
     <Sidebar className="border-r bg-muted/20">
@@ -173,7 +146,7 @@ export function AppSidebar(): JSX.Element {
       <SidebarContent className={cn(
         dragOver ? "ring-2 ring-brand-400/50 bg-brand-50/50 dark:bg-brand-900/30 border-brand-400/20" : "",
         "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden"
-      )} 
+      )}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
@@ -219,7 +192,7 @@ export function AppSidebar(): JSX.Element {
              </Button>
           </div>
         )}
-        {!isGuest && activeDocumentId && versions?.length > 0 && (
+        {!isGuest && activeDocumentId && versions && versions.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>History ({versions.length})</SidebarGroupLabel>
             <SidebarMenu>
