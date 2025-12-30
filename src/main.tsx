@@ -20,6 +20,7 @@ import AdminPage from '@/pages/AdminPage'
 import { PricingPage } from '@/pages/PricingPage'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { LazyMotion, domAnimation } from 'framer-motion';
+import { Toaster } from 'sonner';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -75,6 +76,7 @@ root.render(
     <ErrorBoundary>
       <LazyMotion features={domAnimation}>
         <RouterProvider router={router} />
+        <Toaster position='top-right' richColors />
       </LazyMotion>
     </ErrorBoundary>
     </QueryClientProvider>

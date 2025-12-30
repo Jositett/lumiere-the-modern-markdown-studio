@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -48,7 +48,9 @@ const MermaidDiagram = ({ code }: { code: string }) => {
       }
     };
     render();
-    return () => { isMounted = false; };
+    return () => { 
+      isMounted = false; 
+    };
   }, [code]);
   if (error) return (
     <div className="p-6 bg-rose-50 dark:bg-rose-950/20 text-rose-600 text-xs rounded-2xl border border-rose-100 dark:border-rose-900/50 flex items-center gap-3 font-medium">
@@ -74,40 +76,47 @@ interface MarkdownPreviewProps {
   scrollPercentage?: number;
   className?: string;
 }
-export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(({
+export const MarkdownPreview = ({
   content: propsContent,
   scrollPercentage: propsScroll,
   className
-}, ref) => {
+}: MarkdownPreviewProps) => {
   const storeContent = useEditorStore((s) => s.content);
   const storeScroll = useEditorStore((s) => s.scrollPercentage);
   const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
   const content = propsContent !== undefined ? propsContent : storeContent;
   const scrollPercentage = propsScroll !== undefined ? propsScroll : storeScroll;
   const internalRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
   const prevPercRef = useRef(0);
   const scrollPercentageRef = useRef(0);
 
-  const handlePreviewScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    cancelAnimationFrame(rafRef.current);
+  const handlePreviewScroll = useCallback(() => {
+    const el = internalRef.current;
+    if (!el) return;
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
     rafRef.current = requestAnimationFrame(() => {
-      const tgt = e.currentTarget;
-      const perc = tgt.scrollTop / (tgt.scrollHeight - tgt.clientHeight);
+      const currentEl = internalRef.current;
+      if (!currentEl) return;
+      const scrollable = Math.max(1, currentEl.scrollHeight - currentEl.clientHeight);
+      const perc = currentEl.scrollTop / scrollable;
       if (Number.isFinite(perc)) {
         prevPercRef.current = perc;
         if (Math.abs(perc - scrollPercentageRef.current) > 0.01) {
           setScrollPercentage(Math.max(0, Math.min(1, perc)));
         }
       }
-      rafRef.current = 0;
+      rafRef.current = null;
     });
   }, [setScrollPercentage]);
   useEffect(() => {
     const el = internalRef.current;
     if (el) {
-      const targetScroll = scrollPercentage * (el.scrollHeight - el.clientHeight);
-      if (Math.abs(scrollPercentage - prevPercRef.current) > 0.01) {
+      const scrollable = Math.max(0, el.scrollHeight - el.clientHeight);
+      const targetScroll = scrollPercentage * scrollable;
+      if (Math.abs(targetScroll - el.scrollTop) > 1) {
         prevPercRef.current = scrollPercentage;
         el.scrollTo({ top: targetScroll, behavior: 'auto' });
       }
@@ -119,11 +128,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
   }, [scrollPercentage]);
   return (
     <div
-      ref={(node) => {
-        (internalRef as any).current = node;
-        if (typeof ref === 'function') ref(node);
-        else if (ref) (ref as any).current = node;
-      }}
+      ref={internalRef}
       onScroll={handlePreviewScroll}
       className={cn("h-full w-full overflow-auto bg-card p-6 md:p-12 lg:p-16 scroll-smooth selection:bg-brand-100 dark:selection:bg-brand-900/50", className)}
     >
@@ -159,4 +164,3 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
     </div>
   );
 });
-MarkdownPreview.displayName = "MarkdownPreview";
