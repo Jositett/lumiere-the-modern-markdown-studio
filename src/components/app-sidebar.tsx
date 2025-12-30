@@ -29,49 +29,24 @@ export function AppSidebar(): JSX.Element {
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const handleFileImport = useCallback(async(e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    for (const file of files) {
-      if (!file.name.match(/\.md|txt$/i)) continue;
-      const content = await file.text();
-      const title = file.name.replace(/\.md|txt$/i, "").trim() || "Imported";
-      await createDocument(title, content);
-      toast.success(`Imported ${title}`);
-    }
-    fileInputRef.current!.value = "";
-  }, [createDocument]);
-  const currentDocs = isGuest ? guestDocuments : documents;
-  useEffect(() => {
-    if (isGuest) initializeGuestMode();
-  }, [isGuest, initializeGuestMode]);
-  const fetchDocuments = useCallback(async () => {
-    if (!token) return;
-    try {
-      const data = await api<{ items: Document[] }>('/api/documents', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      setDocuments(data.items);
-    } catch (e) {
-      toast.error('Failed to sync library');
-    }
-  }, [setDocuments, token]);
-  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const selectDocument = useCallback(async (doc: Document) => {
     setActiveDocumentId(doc.id);
     setContent(doc.content);
     setTitle(doc.title);
-    if (!isGuest) {
+    if (!useEditorStore.getState().isGuest) {
       try {
         await useEditorStore.getState().loadVersionsForDoc(doc.id);
       } catch(e) { console.error(e); }
     }
-  }, [setActiveDocumentId, setContent, setTitle, isGuest]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const createDocument = useCallback(async (title = 'New Document', content = '') => {
-    if (isGuest) {
-      if (guestDocuments.length >= 10) {
+    const currentIsGuest = useEditorStore.getState().isGuest;
+    const currentGuestDocs = useEditorStore.getState().guestDocuments;
+    
+    if (currentIsGuest) {
+      if (currentGuestDocs.length >= 10) {
         toast.error("Guest limit reached (10 docs). Upgrade to Pro for unlimited writing!");
         return;
       }
@@ -89,37 +64,78 @@ export function AppSidebar(): JSX.Element {
       return;
     }
     try {
+      const currentToken = useEditorStore.getState().token;
+      const currentDocuments = useEditorStore.getState().documents;
       const doc = await api<Document>('/api/documents', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${currentToken}` },
         body: JSON.stringify({ title, content })
       });
-      setDocuments([doc, ...documents]);
+      useEditorStore.getState().setDocuments([doc, ...currentDocuments]);
       selectDocument(doc);
       toast.success("Document created");
     } catch (e) {
       toast.error("Failed to create document");
     }
-  }, [token, documents, setDocuments, selectDocument, isGuest, guestDocuments, addGuestDocument]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const deleteDoc = useCallback(async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Are you sure?")) return;
-    if (isGuest) {
+    const currentIsGuest = useEditorStore.getState().isGuest;
+    const currentActiveId = useEditorStore.getState().activeDocumentId;
+
+    if (currentIsGuest) {
       deleteGuestDocument(id);
-      if (activeDocumentId === id) setActiveDocumentId(null);
+      if (currentActiveId === id) {
+        useEditorStore.getState().setActiveDocumentId(null);
+      }
       toast.success("Local document removed");
       return;
     }
     try {
-      await api(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      setDocuments(documents.filter(d => d.id !== id));
-      if (activeDocumentId === id) setActiveDocumentId(null);
+      const currentToken = useEditorStore.getState().token;
+      await api(`/api/documents/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${currentToken}` } });
+      const currentDocuments = useEditorStore.getState().documents;
+      useEditorStore.getState().setDocuments(currentDocuments.filter(d => d.id !== id));
+      if (currentActiveId === id) useEditorStore.getState().setActiveDocumentId(null);
       toast.success("Document deleted");
     } catch (e) {
       toast.error("Failed to delete document");
     }
-  }, [token, activeDocumentId, documents, setDocuments, setActiveDocumentId, isGuest, deleteGuestDocument]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleFileImport = useCallback(async(e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    for (const file of files) {
+      if (!file.name.match(/\.md|txt$/i)) continue;
+      const content = await file.text();
+      const title = file.name.replace(/\.md|txt$/i, "").trim() || "Imported";
+      await createDocument(title, content);
+      toast.success(`Imported ${title}`);
+    }
+  }, [createDocument]);
+
+  const currentDocs = isGuest ? guestDocuments : documents;
+  useEffect(() => {
+    if (isGuest) initializeGuestMode();
+  }, [isGuest, initializeGuestMode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchDocuments = useCallback(async () => {
+    const currentToken = useEditorStore.getState().token;
+    if (!currentToken) return;
+    try {
+      const data = await api<{ items: Document[] }>('/api/documents', {
+        headers: { 'Authorization': `Bearer ${currentToken}` }
+      });
+      useEditorStore.getState().setDocuments(data.items);
+    } catch (e) {
+      toast.error('Failed to sync library');
+    }
+  }, []);
+  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
   const filteredDocs = currentDocs.filter(doc => doc.title.toLowerCase().includes(search.toLowerCase()));
   return (
     <Sidebar className="border-r bg-muted/20">
@@ -137,13 +153,16 @@ export function AppSidebar(): JSX.Element {
               <Upload className="w-4 h-4 mr-2" />
               Import MD
             </Button>
-            <input 
-              ref={fileInputRef} 
-              type="file" 
-              accept=".md,.txt" 
-              multiple 
-              className="sr-only absolute inset-0 w-full h-full opacity-0 pointer-events-none" 
-              onChange={handleFileImport}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.txt"
+              multiple
+              className="sr-only absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+              onChange={(e) => {
+                handleFileImport(e);
+                e.target.value = "";
+              }}
             />
           </div>
         </div>
@@ -159,9 +178,17 @@ export function AppSidebar(): JSX.Element {
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      onDrop={(e) => handleDragDrop(e)}
-      }}
+      onDrop={async (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const files = Array.from(e.dataTransfer.files);
+        for(const file of files.filter(f => f.name.match(/\.md|txt$/i))) {
+          const content = await file.text();
+          const title = file.name.replace(/\.md|txt$/i, '').trim() || 'Dropped';
+          await createDocument(title, content);
+          toast.success(`Dropped ${title}`);
+        }
+      }}>
         <SidebarGroup>
           <SidebarGroupLabel className="flex justify-between">
             <span>Library</span>

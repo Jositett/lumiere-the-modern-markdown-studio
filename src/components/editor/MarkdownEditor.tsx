@@ -2,7 +2,8 @@ import React, { useCallback, useRef, useEffect } from 'react';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
-import { lineWrappingConfig, EditorView } from '@codemirror/view';
+// @ts-ignore
+import { lineWrapping } from '@codemirror/view';
 import * as themes from '@uiw/codemirror-themes';
 import { useEditorStore } from '@/lib/store';
 export function MarkdownEditor() {
@@ -36,7 +37,7 @@ export function MarkdownEditor() {
         isUserScrollingRef.current = false;
       }, 100);
     });
-  }, [setScrollPercentage]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -81,7 +82,7 @@ export function MarkdownEditor() {
         }}
         extensions={[
           markdown({ base: markdownLanguage, codeLanguages: languages }),
-          EditorView.lineWrapping.of(lineWrappingConfig.proseWrap(true)),
+          lineWrapping(),
           EditorView.domEventHandlers({
             scroll: (event, view) => {
               handleScroll(view);

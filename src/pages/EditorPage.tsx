@@ -47,19 +47,19 @@ export default function EditorPage() {
   const [mobileTab, setMobileTab] = useState<'write' | 'preview'>('write');
   const [showTour, setShowTour] = useState(false);
 
-  useEffect(() => {
-    const handleKeydown = useCallback((e: KeyboardEvent) => {
-      if (e.key === '?' && e.target === document.body) {
-        e.preventDefault();
-        toast.message('Shortcuts', {
-          description: '• Cmd/Ctrl + S: Save\n• Cmd/Ctrl + P: Preview Toggle\n• ? : Shortcuts\n• F11 / Cmd/Ctrl + \\ : Focus Mode\n• Cmd/Ctrl + K: Cmd Palette'
-        });
-      }
-    }, []);
+  const handleKeydown = useCallback((e: KeyboardEvent) => {
+    if (e.key === '?' && (e.target as Element).tagName !== 'INPUT' && (e.target as Element).tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      toast.message('Shortcuts', {
+        description: '• Cmd/Ctrl + S: Save\n• Cmd/Ctrl + /: Preview Toggle\n• ? : Shortcuts\n• Cmd/Ctrl + \\ : Focus Mode'
+      });
+    }
+  }, []);
 
+  useEffect(() => {
     document.addEventListener('keydown', handleKeydown);
     return () => document.removeEventListener('keydown', handleKeydown);
-  }, []);
+  }, [handleKeydown]);
   useAutoSave();
   useEffect(() => {
     if (!tourComplete) {
