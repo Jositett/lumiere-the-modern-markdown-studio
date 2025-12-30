@@ -43,7 +43,10 @@ const router = createBrowserRouter([
     errorElement: <RouteErrorBoundary />,
   }
 ]);
-createRoot(document.getElementById('root')!).render(
+const container = document.getElementById('root')!;
+const root = (window as any)._reactRoot || createRoot(container);
+(window as any)._reactRoot = root;
+root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>

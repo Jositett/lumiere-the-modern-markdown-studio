@@ -6,20 +6,17 @@ import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, ArrowLeft, Sparkles } from 'lucide-react';
-import { useEditorStore } from '@/lib/store';
 export function PublicSharePage() {
   const { id } = useParams<{ id: string }>();
   const [doc, setDoc] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const setContent = useEditorStore(s => s.setContent);
   useEffect(() => {
     async function load() {
       if (!id) return;
       try {
         const data = await api<Document>(`/api/shared/documents/${id}`);
         setDoc(data);
-        setContent(data.content);
       } catch (err: any) {
         setError(err.message || 'Failed to load document');
       } finally {
@@ -27,7 +24,7 @@ export function PublicSharePage() {
       }
     }
     load();
-  }, [id, setContent]);
+  }, [id]);
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
@@ -75,7 +72,7 @@ export function PublicSharePage() {
           </div>
         </div>
         <div className="bg-card rounded-3xl border shadow-sm overflow-hidden min-h-[600px]">
-          <MarkdownPreview className="p-8 md:p-16" />
+          <MarkdownPreview content={doc.content} className="p-8 md:p-16" />
         </div>
         <footer className="mt-16 py-8 border-t text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-xs font-medium border border-brand-100">

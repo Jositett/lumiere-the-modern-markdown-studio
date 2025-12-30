@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SplitPanel } from '@/components/ui/split-panel';
 import { MarkdownEditor } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -20,6 +20,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 export default function EditorPage() {
+  const content = useEditorStore((s) => s.content);
+  const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
   const title = useEditorStore((s) => s.title);
   const setTitle = useEditorStore((s) => s.setTitle);
   const isPreviewMode = useEditorStore((s) => s.isPreviewMode);
@@ -48,8 +50,11 @@ export default function EditorPage() {
       });
       updateDocumentLocally(activeDocumentId, { isPublic: !isPublic });
       toast.success(isPublic ? "Made Private" : "Made Public");
-    } catch (e) { toast.error("Update failed"); }
+    } catch (e) { 
+      toast.error("Update failed"); 
+    }
   };
+  const preview = <MarkdownPreview content={content} scrollPercentage={scrollPercentage} />;
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -58,12 +63,12 @@ export default function EditorPage() {
           <header className="h-14 border-b flex items-center justify-between px-4 bg-background z-20">
             <div className="flex items-center gap-3 overflow-hidden">
               {!isFocusMode && <SidebarTrigger />}
-              <input 
-                value={title} 
-                onChange={(e) => setTitle(e.target.value)} 
-                disabled={!activeDocumentId} 
-                placeholder="Title..." 
-                className="bg-transparent border-none font-medium text-foreground focus:outline-none truncate w-32 md:w-64" 
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={!activeDocumentId}
+                placeholder="Title..."
+                className="bg-transparent border-none font-medium text-foreground focus:outline-none truncate w-32 md:w-64"
               />
               {activeDocumentId && (
                 <div className="flex items-center gap-1.5 ml-2 text-[10px] font-medium uppercase tracking-wider">
@@ -76,9 +81,9 @@ export default function EditorPage() {
               )}
             </div>
             <div className="flex items-center gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setFocusMode(!isFocusMode)}
                 className={cn(isFocusMode && "text-brand-600 bg-brand-50 dark:bg-brand-900/20")}
                 title={isFocusMode ? "Exit Zen Mode" : "Enter Zen Mode"}
@@ -113,7 +118,18 @@ export default function EditorPage() {
                     <div className="space-y-0.5"><h4 className="font-medium text-sm">Public</h4><p className="text-xs text-muted-foreground">Anyone can view.</p></div>
                     <Switch checked={isPublic} onCheckedChange={togglePublic} />
                   </div>
-                  {isPublic && <Button size="sm" className="w-full gap-2" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/s/${activeDocumentId}`); toast.success("Copied"); }}><LinkIcon className="w-3 h-3" /> Copy Link</Button>}
+                  {isPublic && (
+                    <Button 
+                      size="sm" 
+                      className="w-full gap-2" 
+                      onClick={() => { 
+                        navigator.clipboard.writeText(`${window.location.origin}/s/${activeDocumentId}`); 
+                        toast.success("Copied to clipboard"); 
+                      }}
+                    >
+                      <LinkIcon className="w-3 h-3" /> Copy Link
+                    </Button>
+                  )}
                 </PopoverContent>
               </Popover>
               {!isMobile && !isFocusMode && (
@@ -130,7 +146,7 @@ export default function EditorPage() {
               <MarkdownEditor />
             ) : isMobile ? (
               <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-hidden">{mobileTab === 'write' ? <MarkdownEditor /> : <MarkdownPreview />}</div>
+                <div className="flex-1 overflow-hidden">{mobileTab === 'write' ? <MarkdownEditor /> : preview}</div>
                 <div className="h-12 border-t bg-background px-4 flex items-center">
                   <Tabs value={mobileTab} onValueChange={(v) => setMobileTab(v as any)} className="w-full">
                     <TabsList className="grid w-full grid-cols-2 h-9">
@@ -145,7 +161,7 @@ export default function EditorPage() {
                 <MarkdownEditor />
               </div>
             ) : isPreviewMode ? (
-              <SplitPanel left={<MarkdownEditor />} right={<MarkdownPreview />} className="h-full border-none rounded-none" />
+              <SplitPanel left={<MarkdownEditor />} right={preview} className="h-full border-none rounded-none" />
             ) : (
               <MarkdownEditor />
             )}

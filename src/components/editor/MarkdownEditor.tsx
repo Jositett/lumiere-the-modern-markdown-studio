@@ -11,7 +11,8 @@ export function MarkdownEditor() {
   const editorSettings = useEditorStore((s) => s.editorSettings);
   const setScrollPercentage = useEditorStore((s) => s.setScrollPercentage);
   const themeName = (editorSettings.theme || 'vscodeDark') as string;
-  const selectedTheme = (themes as any)[themeName] || themes.vscodeDark;
+  // Use bracket notation to avoid TS2339 property access errors on dynamic themes
+  const selectedTheme = (themes as any)[themeName] || (themes as any)['vscodeDark'];
   const handleScroll = useCallback((view: EditorView) => {
     const { scrollHeight, clientHeight, scrollTop } = view.scrollDOM;
     if (scrollHeight > clientHeight) {

@@ -29,11 +29,21 @@ const MermaidDiagram = ({ code }: { code: string }) => {
   if (error) return <div className="p-4 bg-destructive/10 text-destructive text-xs rounded-lg">{error}</div>;
   return <div dangerouslySetInnerHTML={{ __html: svg }} className="my-4 flex justify-center bg-white/5 p-4 rounded-xl" />;
 };
-export const MarkdownPreview = forwardRef<HTMLDivElement, { className?: string }>(({ className }, ref) => {
-  const content = useEditorStore((s) => s.content);
-  const scrollPercentage = useEditorStore((s) => s.scrollPercentage);
+interface MarkdownPreviewProps {
+  content?: string;
+  scrollPercentage?: number;
+  className?: string;
+}
+export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(({ 
+  content: propsContent, 
+  scrollPercentage: propsScroll,
+  className 
+}, ref) => {
+  const storeContent = useEditorStore((s) => s.content);
+  const storeScroll = useEditorStore((s) => s.scrollPercentage);
+  const content = propsContent !== undefined ? propsContent : storeContent;
+  const scrollPercentage = propsScroll !== undefined ? propsScroll : storeScroll;
   const internalRef = useRef<HTMLDivElement>(null);
-  // Synchronize scrolling from the store
   useEffect(() => {
     const el = internalRef.current;
     if (el) {
@@ -42,7 +52,7 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, { className?: string }
     }
   }, [scrollPercentage]);
   return (
-    <div 
+    <div
       ref={(node) => {
         (internalRef as any).current = node;
         if (typeof ref === 'function') ref(node);

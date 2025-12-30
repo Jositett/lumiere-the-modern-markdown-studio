@@ -1,10 +1,10 @@
 import React from 'react';
-import { 
-  FileText, 
-  Code, 
-  Download, 
-  ChevronDown, 
-  Printer 
+import {
+  FileText,
+  Code,
+  Download,
+  ChevronDown,
+  Printer
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -32,19 +32,36 @@ export function ExportMenu() {
     toast.success("Markdown downloaded");
   };
   const exportHtml = () => {
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>${title}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title} | Lumiere Studio</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
   <style>
-    body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }
-    @media (max-width: 767px) { .markdown-body { padding: 15px; } }
+    body { 
+      box-sizing: border-box; 
+      min-width: 200px; 
+      max-width: 980px; 
+      margin: 0 auto; 
+      padding: 45px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    @media (max-width: 767px) { 
+      body { padding: 15px; } 
+    }
+    .markdown-body {
+      box-sizing: border-box;
+      min-width: 200px;
+      max-width: 980px;
+      margin: 0 auto;
+    }
   </style>
 </head>
 <body class="markdown-body">
+  <h1>${title}</h1>
+  <hr />
   ${content}
 </body>
 </html>`;
@@ -56,6 +73,12 @@ export function ExportMenu() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Styled HTML exported");
+  };
+  const handlePrint = () => {
+    toast.info("Preparing document for print...");
+    setTimeout(() => {
+      window.print();
+    }, 500);
   };
   return (
     <DropdownMenu>
@@ -77,7 +100,7 @@ export function ExportMenu() {
           <Code className="w-4 h-4 text-muted-foreground" />
           <span>Export as Styled HTML</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => window.print()} className="gap-2 cursor-pointer">
+        <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
           <Printer className="w-4 h-4 text-muted-foreground" />
           <span>Print to PDF</span>
         </DropdownMenuItem>
