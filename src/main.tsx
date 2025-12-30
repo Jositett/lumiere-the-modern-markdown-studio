@@ -17,6 +17,7 @@ import AuthPage from '@/pages/AuthPage'
 import { PublicSharePage } from '@/pages/PublicSharePage'
 import DocsPage from '@/pages/DocsPage'
 import AdminPage from '@/pages/AdminPage'
+import { PricingPage } from '@/pages/PricingPage'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
@@ -33,6 +34,11 @@ const router = createBrowserRouter([
   {
     path: "/docs",
     element: <DocsPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/pricing",
+    element: <PricingPage />,
     errorElement: <RouteErrorBoundary />,
   },
   {

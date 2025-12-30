@@ -39,6 +39,7 @@ export default function EditorPage() {
   const setFocusMode = useEditorStore((s) => s.setFocusMode);
   const token = useEditorStore(s => s.token);
   const user = useEditorStore(s => s.user);
+  const isGuest = useEditorStore(s => s.isGuest);
   const tourComplete = useEditorStore(s => s.tourComplete);
   const setTourComplete = useEditorStore(s => s.setTourComplete);
   const isMobile = useIsMobile();
@@ -71,6 +72,9 @@ export default function EditorPage() {
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex h-screen w-full overflow-hidden bg-background">
+        {isGuest && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-brand-600 z-50 animate-pulse" />
+        )}
         {!isFocusMode && <AppSidebar />}
         <main className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b flex items-center justify-between px-4 bg-background z-20">
@@ -94,6 +98,11 @@ export default function EditorPage() {
               )}
             </div>
             <div className="flex items-center gap-1">
+              {isGuest && (
+                <Button variant="ghost" size="sm" asChild className="text-brand-600 hidden md:flex font-bold">
+                   <Link to="/pricing">Unlock Pro</Link>
+                </Button>
+              )}
               {user?.role === 'admin' && (
                 <Button variant="ghost" size="icon" asChild title="Admin Panel">
                   <Link to="/admin"><ShieldCheck className="w-4 h-4 text-brand-600" /></Link>
@@ -130,7 +139,14 @@ export default function EditorPage() {
                 </PopoverContent>
               </Popover>
               <Popover>
-                <PopoverTrigger asChild><Button variant="ghost" size="icon" disabled={!activeDocumentId}><Share2 className="w-4 h-4" /></Button></PopoverTrigger>
+                <PopoverTrigger asChild>
+                   <Button variant="ghost" size="icon" disabled={!activeDocumentId || isGuest}>
+                     <Share2 className="w-4 h-4" />
+                   </Button>
+                </PopoverTrigger>
+                {isGuest && (
+                   <PopoverContent className="p-3 text-xs text-center">Cloud sharing is a Pro feature.</PopoverContent>
+                )}
                 <PopoverContent className="w-72 p-4 space-y-4" align="end">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5"><h4 className="font-medium text-sm">Public</h4><p className="text-xs text-muted-foreground">Anyone can view.</p></div>

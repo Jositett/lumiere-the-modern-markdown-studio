@@ -8,6 +8,8 @@ export function useAutoSave() {
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const setSaving = useEditorStore((s) => s.setSaving);
   const updateDocumentLocally = useEditorStore((s) => s.updateDocumentLocally);
+  const updateGuestDocument = useEditorStore((s) => s.updateGuestDocument);
+  const token = useEditorStore((s) => s.token);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!activeDocumentId) return;
@@ -18,6 +20,12 @@ export function useAutoSave() {
     // Set debounce timer for 2 seconds
     timerRef.current = setTimeout(async () => {
       setSaving(true);
+      if (!token) {
+        updateGuestDocument(activeDocumentId, { content, title });
+        setSaving(false);
+        return;
+      }
+
       try {
         const updated = await api<Document>(`/api/documents/${activeDocumentId}`, {
           method: 'PUT',
@@ -33,5 +41,5 @@ export function useAutoSave() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [content, title, activeDocumentId, setSaving, updateDocumentLocally]);
+  }, [content, title, activeDocumentId, setSaving, updateDocumentLocally, updateGuestDocument, token]);
 }
