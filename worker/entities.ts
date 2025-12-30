@@ -50,7 +50,8 @@ export class UserEntity extends IndexedEntity<User> {
   static readonly initialState: User = { id: "", name: "", email: "" };
 
   static async findByEmail(env: any, email: string): Promise<User | null> {
-    return null; // TODO: Implement proper email index lookup
+    const users = await this.list(env);
+    return users.items.find(u => u.email === email) || null;
   }
   static async hashPassword(password: string, salt: string): Promise<string> {
     const enc = new TextEncoder();
