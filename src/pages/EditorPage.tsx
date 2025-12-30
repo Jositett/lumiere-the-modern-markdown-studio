@@ -224,9 +224,20 @@ export default function EditorPage() {
                   <Button
                     size="sm"
                     className="w-full gap-2"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/s/${activeDocumentId}`);
-                      toast.success("Copied to clipboard");
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(`${window.location.origin}/s/${activeDocumentId}`);
+                        toast.success('Link copied');
+                      } catch {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = `${window.location.origin}/s/${activeDocumentId}`;
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        toast.success('Link copied');
+                      }
                     }}
                   >
                     <LinkIcon className="w-3 h-3" /> Copy Link

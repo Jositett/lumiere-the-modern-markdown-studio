@@ -1,6 +1,29 @@
 import { ApiResponse } from "@shared/types";
-import { useEditorStore } from "./store";
 import { toast } from 'sonner';
+async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText && document.hasFocus() && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {}
+  }
+  // Fallback
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+  } finally {
+    textarea.blur();
+    document.body.removeChild(textarea);
+  }
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('Content-Type', 'application/json');
@@ -14,7 +37,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(path, { headers, ...init });
     if (res.status === 401) {
       toast.error('Session expired. Please login again.');
-      useEditorStore.getState().logout();
       throw new Error('Unauthorized');
     }
     if (res.status === 403) {
@@ -37,25 +59,33 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   } catch (err: any) {
     const errorMessage = err.message || String(err);
     if (errorMessage !== 'Unauthorized' && errorMessage !== 'Forbidden') {
+      const errorStack = err.stack || '';
       // Report client-side errors
       fetch('/api/client-errors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: errorMessage, 
-          stack: err.stack || '', 
-          url: window.location.href, 
-          category: 'api-js' 
+        body: JSON.stringify({
+          message: errorMessage,
+          stack: errorStack,
+          url: window.location.href,
+          category: 'api-js'
         })
       }).catch(() => {});
       
-      toast.error(errorMessage, { 
-        action: { 
-          label: 'Copy Report', 
-          onClick: () => navigator.clipboard.writeText(
-            `URL: ${window.location.href}\nError: ${errorMessage}\nStack: ${err.stack || 'N/A'}`
-          ) 
-        } 
+      toast.error(errorMessage, {
+        action: {
+          label: 'Copy Report',
+          onClick: async () => {
+            try {
+              await copyToClipboard(
+                `URL: ${window.location.href}\nError: ${errorMessage}\nStack: ${errorStack || 'N/A'}`
+              );
+              toast.success('Copied error report');
+            } catch(e) {
+              console.error(e);
+            }
+          }
+        }
       });
     }
     throw err;
