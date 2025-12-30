@@ -1,6 +1,6 @@
 # Cloudflare Workers Full-Stack Chat Demo
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Jositett/lumiere-the-modern-markdown-studio)
 
 A production-ready full-stack chat application built on Cloudflare Workers, featuring Durable Objects for multi-tenant data isolation, React frontend with shadcn/ui, and Hono for API routing. Demonstrates users, chat boards, and real-time messaging with indexed listing and pagination.
 
@@ -83,7 +83,7 @@ All responses: `{success: boolean, data?: T, error?: string}`
    ```
    Or use Wrangler CLI: `npx wrangler deploy`
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Jositett/lumiere-the-modern-markdown-studio)
 
 **Configure Secrets** (optional):
 ```bash
