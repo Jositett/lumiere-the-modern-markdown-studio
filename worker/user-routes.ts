@@ -39,7 +39,6 @@ const logEvent = async (env: Env, log: Omit<SystemLog, 'id' | 'timestamp'>) => {
   }
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
-  app.use('/api/*', rateLimit);
 
   app.post('/api/auth/register', async (c) => {
     try {
@@ -192,17 +191,6 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (!state) return notFound(c);
     if (state.userId !== user.id && user!.role !== 'admin') return bad(c, 'Forbidden');
     await DocumentEntity.delete(c.env, id);
-    return ok(c, { success: true });
-  });
-  app.post('/api/client-errors', async (c) => {
-    const error = await c.req.json<ClientError>();
-    const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName('client-errors-root'));
-    for (let i = 0; i < 5; i++) {
-      const current = await (stub as any).getDoc("errors");
-      const errs = [{ ...error, id: crypto.randomUUID(), timestamp: Date.now() }, ...(current?.data || [])].slice(0, 50);
-      const res = await (stub as any).casPut("errors", current?.v ?? 0, errs);
-      if (res.ok) break;
-    }
     return ok(c, { success: true });
   });
 }
